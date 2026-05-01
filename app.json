@@ -8,7 +8,10 @@
     "scheme": "sssearch",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "com.apple.developer.kernel.extended-virtual-addressing": true
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +20,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.tanay22.sssearch"
     },
     "web": {
       "output": "static",
@@ -34,11 +38,19 @@
             "imageWidth": 76
           }
         }
-      ]
+      ],
+      "react-native-litert-lm"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1ce03484-5e96-4e67-9c39-c8d3a9109dd0"
+      }
+    },
+    "owner": "tanay22"
   }
 }
