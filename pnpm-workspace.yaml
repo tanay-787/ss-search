@@ -1,3 +1,2 @@
 allowBuilds:
   react-native-litert-lm: true
-nodeLinker: hoisted
