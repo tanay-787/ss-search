@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
-    "build:local": "pnpm exec eas build --local --platform android --profile development",
+    "build:local": "./android-build.sh",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
