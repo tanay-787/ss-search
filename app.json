@@ -39,7 +39,10 @@
           }
         }
       ],
-      "react-native-litert-lm"
+      "react-native-litert-lm",
+      "expo-font",
+      "expo-image",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
