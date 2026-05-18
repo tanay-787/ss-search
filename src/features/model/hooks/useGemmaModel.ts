@@ -9,9 +9,18 @@ type UseGemmaModelOptions = {
   autoLoad?: boolean;
 };
 
+function normalizeLocalModelPath(pathOrUri: string | null | undefined) {
+  if (!pathOrUri) {
+    return null;
+  }
+
+  return pathOrUri.startsWith('file://') ? pathOrUri.replace('file://', '') : pathOrUri;
+}
+
 export function useGemmaModel(options: UseGemmaModelOptions = {}) {
   const { modelSourceUri = GEMMA_MODEL_URL, autoLoad = true } = options;
   const backend = useMemo(() => getRecommendedBackend() ?? 'cpu', []);
+  const modelPath = normalizeLocalModelPath(modelSourceUri);
 
   const {
     model,
@@ -24,7 +33,7 @@ export function useGemmaModel(options: UseGemmaModelOptions = {}) {
     deleteModel,
     load,
     memorySummary,
-  } = useModel(modelSourceUri ?? GEMMA_MODEL_URL, {
+  } = useModel(modelPath ?? GEMMA_MODEL_URL, {
     backend,
     autoLoad,
     systemPrompt: DEFAULT_SYSTEM_PROMPT,

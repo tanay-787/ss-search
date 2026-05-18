@@ -11,9 +11,10 @@ export default function ModelDebugScreen() {
   const router = useRouter();
   const theme = useTheme();
   const download = useGemmaModelDownload();
+  const [isLoadingLocalModel, setIsLoadingLocalModel] = useState(false);
   const { state, generate, load, deleteModel, memorySummary } = useGemmaModel({
     modelSourceUri: download.downloaded ? download.fileUri : null,
-    autoLoad: download.downloaded,
+    autoLoad: false,
   });
   const [prompt, setPrompt] = useState('Summarize this screenshot app in one sentence.');
   const [output, setOutput] = useState('');
@@ -23,11 +24,20 @@ export default function ModelDebugScreen() {
     setOutput(result);
   };
 
+  const loadLocalModel = async () => {
+    setIsLoadingLocalModel(true);
+    try {
+      await load();
+    } finally {
+      setIsLoadingLocalModel(false);
+    }
+  };
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.colors.background }]}>
       <Appbar.Header mode="small" elevated={false} style={styles.header}>
         <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Gemma model" subtitle={state.status} />
+        <Appbar.Content title="Gemma 4 E2B" subtitle={state.status} />
       </Appbar.Header>
 
       <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
@@ -38,6 +48,7 @@ export default function ModelDebugScreen() {
               <Text>Download status: {download.status}</Text>
               <Text>Backend: {state.backend}</Text>
               <Text>Ready: {state.isReady ? 'yes' : 'no'}</Text>
+              <Text>Loading: {isLoadingLocalModel ? 'yes' : 'no'}</Text>
               <Text>Generating: {state.isGenerating ? 'yes' : 'no'}</Text>
               <Text>Load progress: {Math.round((state.downloadProgress || 0) * 100)}%</Text>
               <Text>Download progress: {Math.round((download.progress || 0) * 100)}%</Text>
@@ -59,8 +70,12 @@ export default function ModelDebugScreen() {
               <Button mode="outlined" onPress={download.resumeDownload}>
                 Resume download
               </Button>
-              <Button mode="outlined" onPress={load} disabled={!download.downloaded}>
-                Load local model
+              <Button
+                mode="outlined"
+                onPress={() => void loadLocalModel()}
+                disabled={!download.downloaded || isLoadingLocalModel}
+              >
+                {isLoadingLocalModel ? 'Loading local model...' : 'Load local model'}
               </Button>
               <Button mode="outlined" onPress={() => void deleteModel()}>
                 Delete model

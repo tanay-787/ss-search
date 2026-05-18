@@ -5,7 +5,7 @@ import * as TaskManager from 'expo-task-manager';
 import { GEMMA_MODEL_URL } from '../constants';
 
 export const MODEL_DOWNLOAD_TASK = 'gemma-model-download-task';
-export const MODEL_FILE_NAME = 'gemma-3n-e2b-it-int4.litertlm';
+export const MODEL_FILE_NAME = 'gemma-4-E2B-it.litertlm';
 
 const MODEL_DIRECTORY = `${FileSystem.documentDirectory ?? ''}models/`;
 const MODEL_FILE_URI = `${MODEL_DIRECTORY}${MODEL_FILE_NAME}`;
@@ -145,7 +145,7 @@ export function getModelFileUri() {
 }
 
 export function isModelDownloaded() {
-  return state.status === 'ready' && state.fileUri === MODEL_FILE_URI;
+  return state.status === 'ready' && Boolean(state.fileUri);
 }
 
 export async function startModelDownload() {

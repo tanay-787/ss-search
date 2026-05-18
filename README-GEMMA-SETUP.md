@@ -1,6 +1,6 @@
-Gemma 3n setup notes
+Gemma 4 E2B setup notes
 
-1. The app uses `react-native-litert-lm` with the public `GEMMA_3N_E2B_IT_INT4` HTTPS URL.
+1. The app uses `react-native-litert-lm` with the public `GEMMA_4_E2B_IT` HTTPS URL.
 2. `useGemmaModel` lives under `src/features/model/hooks/useGemmaModel.ts` and wraps the package hook with a default system prompt.
 3. No HuggingFace token onboarding is needed for the current flow.
 
