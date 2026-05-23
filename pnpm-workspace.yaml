@@ -1,4 +1,7 @@
 allowBuilds:
   dtrace-provider: true
   react-native-litert-lm: true
+  react-native-siglip: true
   unrs-resolver: true
+patchedDependencies:
+  react-native-siglip@0.1.1: patches/react-native-siglip@0.1.1.patch

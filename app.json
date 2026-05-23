@@ -41,6 +41,24 @@
       ],
       "react-native-litert-lm",
       [
+        "expo-sqlite",
+        {
+          "enableFTS": true,
+          "withSQLiteVecExtension": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          },
+          "ios": {
+            "deploymentTarget": "15.5"
+          }
+        }
+      ],
+      [
         "expo-media-library",
         {
           "photosPermission": "Allow SS Search to access your screenshots.",
@@ -53,7 +71,28 @@
       "expo-font",
       "expo-image",
       "expo-web-browser",
-      "expo-background-task"
+      "expo-background-task",
+      [
+        "rn-mlkit-ocr",
+        {
+          "ocrModels": [
+            "latin",
+            "chinese",
+            "devanagari",
+            "japanese",
+            "korean"
+          ],
+          "ocrUseBundled": true
+        }
+      ],
+      [
+        "react-native-siglip",
+        {
+          "enableCoreML": true,
+          "enableQNN": false,
+          "modelsDirectory": "siglip_models"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

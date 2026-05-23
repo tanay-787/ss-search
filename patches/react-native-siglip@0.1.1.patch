@@ -1,0 +1,25 @@
+diff --git a/android/build.gradle b/android/build.gradle
+index 11e8e52ab98f4280077af2bdd177f837651cf418..401d2bea6cccb0cb01893d82e5d26c1ac8d8deb5 100755
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -16,7 +16,7 @@ android {
+   compileSdkVersion 34
+ 
+   defaultConfig {
+-    minSdkVersion 24
++    minSdkVersion 26
+     targetSdkVersion 34
+     externalNativeBuild {
+       cmake {
+diff --git a/package.json b/package.json
+index 4e9c46bb44d6a7d21208bb88560ea7a7a9f7da9d..c825e07931b81f29b81645172cf2dc83d798e925 100755
+--- a/package.json
++++ b/package.json
+@@ -23,7 +23,6 @@
+     "LICENSE"
+   ],
+   "scripts": {
+-    "postinstall": "node scripts/setup-binaries.js",
+     "test": "jest",
+     "typecheck": "tsc --noEmit",
+     "release": "release-it"
