@@ -12,6 +12,7 @@ import type { JobJournalJob } from '../types';
 export async function runIndexStage(job: JobJournalJob): Promise<{ status: 'completed' | 'failed'; error?: string }> {
   try {
     const db = await getJobJournalDatabase();
+    const now = Date.now();
 
     // Fetch OCR text
     const ocrRow = await db.getFirstAsync<{ text: string }>(
@@ -25,6 +26,18 @@ export async function runIndexStage(job: JobJournalJob): Promise<{ status: 'comp
       [job.id],
     );
     const keywordsText = keywordRows.map((row) => row.keyword).join(' ');
+    const ftsReady = ocrText.trim().length > 0 || keywordsText.trim().length > 0;
+    const keywordsReady = true;
+
+    if (!ftsReady) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO search_readiness
+         (job_id, fts_ready, vector_ready, keywords_ready, indexed_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [job.id, 0, 0, keywordsReady ? 1 : 0, null, now],
+      );
+      return { status: 'failed', error: 'No searchable OCR or keyword content to index' };
+    }
 
     // Insert into FTS5 screenshot_search_index
     await db.runAsync(
@@ -34,6 +47,7 @@ export async function runIndexStage(job: JobJournalJob): Promise<{ status: 'comp
     );
 
     // Fetch and register embeddings in vector index
+    let vectorReady = false;
     const vecStatus = getJobJournalVecStatus();
     if (vecStatus.available) {
       const embeddingRows = await db.getAllAsync<{ modality: string; vector: ArrayBuffer }>(
@@ -56,7 +70,21 @@ export async function runIndexStage(job: JobJournalJob): Promise<{ status: 'comp
            VALUES (?, ?)`,
           [embeddingJson, job.id],
         );
+        vectorReady = true;
       }
+    } else {
+      vectorReady = false;
+    }
+
+    await db.runAsync(
+      `INSERT OR REPLACE INTO search_readiness
+       (job_id, fts_ready, vector_ready, keywords_ready, indexed_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [job.id, 1, vectorReady ? 1 : 0, keywordsReady ? 1 : 0, now, now],
+    );
+
+    if (vecStatus.available && !vectorReady) {
+      return { status: 'failed', error: 'Image embedding missing for vector indexing' };
     }
 
     return { status: 'completed' };

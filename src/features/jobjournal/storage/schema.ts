@@ -97,6 +97,15 @@ CREATE TABLE IF NOT EXISTS keyword_stage_results (
 CREATE UNIQUE INDEX IF NOT EXISTS keyword_stage_results_job_keyword_idx
   ON keyword_stage_results(job_id, keyword);
 
+CREATE TABLE IF NOT EXISTS search_readiness (
+  job_id TEXT PRIMARY KEY REFERENCES job_journal_jobs(id) ON DELETE CASCADE,
+  fts_ready INTEGER NOT NULL DEFAULT 0,
+  vector_ready INTEGER NOT NULL DEFAULT 0,
+  keywords_ready INTEGER NOT NULL DEFAULT 0,
+  indexed_at INTEGER,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS screenshot_search_index USING fts5(
   job_id UNINDEXED,
   ocr_text,

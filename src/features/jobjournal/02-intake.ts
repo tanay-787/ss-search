@@ -23,12 +23,12 @@ function getJobId(asset: MediaLibrary.Asset) {
 
 async function getImageHash(asset: MediaLibrary.Asset) {
   const file = new File(asset.uri);
-  const info = file.info();
+  const info = file.info({ md5: true });
   if (info.exists && info.md5) {
-    return info.md5;
+    return { hash: `md5:${info.md5}`, isReliable: true };
   }
 
-  return [
+  const fallbackHash = [
     asset.id,
     asset.uri,
     asset.filename ?? '',
@@ -36,6 +36,7 @@ async function getImageHash(asset: MediaLibrary.Asset) {
     asset.width ?? 0,
     asset.height ?? 0,
   ].join('|');
+  return { hash: `fallback:${fallbackHash}`, isReliable: false };
 }
 
 function getStageExecutionId(jobId: string, stage: JobJournalStage) {
@@ -49,13 +50,15 @@ async function seedJobForAsset(asset: MediaLibrary.Asset): Promise<{
   const db = await getJobJournalDatabase();
   const now = Date.now();
   const jobId = getJobId(asset);
-  const imageHash = await getImageHash(asset);
+  const hashResult = await getImageHash(asset);
+  const imageHash = hashResult.hash;
   const imageUri = asset.uri;
 
-  const existingJob = await db.getFirstAsync<{ id: string }>(
-    `SELECT id FROM job_journal_jobs WHERE image_hash = ?`,
-    [imageHash],
-  );
+  const existingJob = hashResult.isReliable
+    ? await db.getFirstAsync<{ id: string }>(`SELECT id FROM job_journal_jobs WHERE image_hash = ?`, [
+        imageHash,
+      ])
+    : await db.getFirstAsync<{ id: string }>(`SELECT id FROM job_journal_jobs WHERE id = ?`, [jobId]);
 
   if (existingJob) {
     const stageExecutionId = getStageExecutionId(existingJob.id, INITIAL_STAGE);
