@@ -43,7 +43,7 @@ function getStageExecutionId(jobId: string, stage: JobJournalStage) {
   return `${jobId}_${stage}`;
 }
 
-async function seedJobForAsset(asset: MediaLibrary.Asset): Promise<{
+async function seedJobForAsset(asset: MediaLibrary.Asset, vectorRequired: boolean = false): Promise<{
   createdJob: boolean;
   createdExecution: boolean;
 }> {
@@ -55,12 +55,17 @@ async function seedJobForAsset(asset: MediaLibrary.Asset): Promise<{
   const imageUri = asset.uri;
 
   const existingJob = hashResult.isReliable
-    ? await db.getFirstAsync<{ id: string }>(`SELECT id FROM job_journal_jobs WHERE image_hash = ?`, [
+    ? await db.getFirstAsync<{ id: string; vector_required?: number }>(`SELECT id, vector_required FROM job_journal_jobs WHERE image_hash = ?`, [
         imageHash,
       ])
-    : await db.getFirstAsync<{ id: string }>(`SELECT id FROM job_journal_jobs WHERE id = ?`, [jobId]);
+    : await db.getFirstAsync<{ id: string; vector_required?: number }>(`SELECT id, vector_required FROM job_journal_jobs WHERE id = ?`, [jobId]);
 
   if (existingJob) {
+    // If caller requested vector indexing and job previously did not require it, update the job record.
+    if (vectorRequired && !(existingJob.vector_required === 1)) {
+      await db.runAsync(`UPDATE job_journal_jobs SET vector_required = 1, updated_at = ? WHERE id = ?`, [now, existingJob.id]);
+    }
+
     const stageExecutionId = getStageExecutionId(existingJob.id, INITIAL_STAGE);
     const existingExecution = await db.getFirstAsync<{ id: string }>(
       `SELECT id FROM stage_executions WHERE id = ?`,
@@ -82,9 +87,9 @@ async function seedJobForAsset(asset: MediaLibrary.Asset): Promise<{
 
   await db.runAsync(
     `INSERT INTO job_journal_jobs (
-      id, image_uri, image_hash, status, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?)`,
-    [jobId, imageUri, imageHash, 'pending', now, now],
+      id, image_uri, image_hash, status, vector_required, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [jobId, imageUri, imageHash, 'pending', vectorRequired ? 1 : 0, now, now],
   );
 
   const stageExecutionId = getStageExecutionId(jobId, INITIAL_STAGE);
@@ -98,14 +103,15 @@ async function seedJobForAsset(asset: MediaLibrary.Asset): Promise<{
   return { createdJob: true, createdExecution: true };
 }
 
-export async function ingestJobJournalScreenshots(assets: MediaLibrary.Asset[] = []) {
+export async function ingestJobJournalScreenshots(assets: MediaLibrary.Asset[] = [], options?: { vectorRequired?: boolean }) {
   const nextAssets = assets.length > 0 ? assets : await loadJobJournalScreenshotSource();
   let createdJobs = 0;
   let existingJobs = 0;
   let createdExecutions = 0;
+  const vectorRequired = options?.vectorRequired ?? false;
 
   for (const asset of nextAssets) {
-    const result = await seedJobForAsset(asset);
+    const result = await seedJobForAsset(asset, vectorRequired);
     if (result.createdJob) createdJobs += 1;
     else existingJobs += 1;
     if (result.createdExecution) createdExecutions += 1;
