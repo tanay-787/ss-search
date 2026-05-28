@@ -296,3 +296,15 @@ export async function getStageExecutionStats(): Promise<{
   }
   return result;
 }
+
+export async function revokeExecutionLease(executionId: string): Promise<boolean> {
+  const db = await getJobJournalDatabase();
+  const now = Date.now();
+  const result = await db.runAsync(
+    `UPDATE stage_executions
+     SET status = 'pending', lease_until = NULL, updated_at = ?
+     WHERE id = ? AND status = 'running'`,
+    [now, executionId],
+  );
+  return (result.changes ?? 0) > 0;
+}

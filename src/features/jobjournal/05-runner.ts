@@ -13,6 +13,7 @@ import {
   markExecutionWaitingForModel,
   recoveryExpiredLeases,
   renewExecutionLease,
+  revokeExecutionLease,
 } from './03-executor';
 import {
   runEmbeddingStage,
@@ -27,6 +28,9 @@ import { runOcrStage } from './stages/02-ocr.stage';
 import { runOcrPostprocessStage } from './stages/03-ocr_postprocess.stage';
 import { runKeywordsStage } from './stages/05-keywords.stage';
 import { runIndexStage } from './stages/06-index.stage';
+
+let currentExecutionId: string | null = null;
+let shutdownHandlerInstalled = false;
 
 async function getJob(jobId: string): Promise<JobJournalJob | null> {
   const db = await getJobJournalDatabase();
@@ -104,6 +108,36 @@ export async function runNextStageExecution(): Promise<boolean> {
   }
 
   const job = await getJob(execution.jobId);
+  // Track current claimed execution so that graceful shutdown can revoke the lease
+  currentExecutionId = execution.id;
+  if (!shutdownHandlerInstalled) {
+    // Install handlers if environment supports process signals
+    if (typeof process !== 'undefined' && typeof (process as any).on === 'function') {
+      const handleSignal = async (sig: string) => {
+        try {
+          if (currentExecutionId) {
+            // best-effort revoke; ignore errors
+            await revokeExecutionLease(currentExecutionId);
+            // eslint-disable-next-line no-console
+            console.log(`revoked execution lease for ${currentExecutionId} due to signal ${sig}`);
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error('Error revoking execution lease during shutdown', err);
+        } finally {
+          // exit after attempting revoke
+          try {
+            process.exit(0);
+          } catch {
+            // ignore
+          }
+        }
+      };
+      (process as any).on('SIGINT', () => void handleSignal('SIGINT'));
+      (process as any).on('SIGTERM', () => void handleSignal('SIGTERM'));
+    }
+    shutdownHandlerInstalled = true;
+  }
   if (!job) {
     await failStageExecution(execution.id, `Job not found: ${execution.jobId}`);
     return true;
@@ -160,6 +194,8 @@ export async function runNextStageExecution(): Promise<boolean> {
     };
   } finally {
     if (heartbeat) clearInterval(heartbeat);
+    // clear current execution marker so shutdown handler won't try to revoke it
+    currentExecutionId = null;
   }
 
   if (result.status === 'completed') {
