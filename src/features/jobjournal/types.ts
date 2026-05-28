@@ -53,3 +53,19 @@ export type SiglipModelState = {
   textPath: string | null;
   tokenizerPath: string | null;
 };
+
+export type JobJournalErrorCode =
+  | 'PRECONDITION_FAILED'
+  | 'MODEL_UNAVAILABLE'
+  | 'TIMEOUT'
+  | 'IO_ERROR'
+  | 'VECTOR_MISSING'
+  | 'VECTOR_UNAVAILABLE'
+  | 'NOT_FOUND'
+  | 'UNKNOWN';
+
+export type StageResult = {
+  status: 'completed' | 'failed' | 'waiting_for_model';
+  error?: string;
+  errorCode?: JobJournalErrorCode;
+};

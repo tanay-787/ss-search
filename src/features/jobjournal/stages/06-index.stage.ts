@@ -50,7 +50,7 @@ export async function runIndexStage(job: JobJournalJob): Promise<{ status: 'comp
          VALUES (?, ?, ?, ?, ?, ?)`,
         [job.id, ftsReady ? 1 : 0, 0, keywordsReady ? 1 : 0, null, now],
       );
-      return { status: 'failed', error: 'Vector indexing required but vec extension unavailable' };
+      return { status: 'failed', error: 'Vector indexing required but vec extension unavailable', errorCode: 'VECTOR_UNAVAILABLE' };
     }
 
     if (vecStatus.available) {
@@ -88,7 +88,7 @@ export async function runIndexStage(job: JobJournalJob): Promise<{ status: 'comp
     );
 
     if (vecStatus.available && !vectorReady) {
-      return { status: 'failed', error: 'Image embedding missing for vector indexing' };
+      return { status: 'failed', error: 'Image embedding missing for vector indexing', errorCode: 'VECTOR_MISSING' };
     }
 
     return { status: 'completed' };
@@ -96,6 +96,7 @@ export async function runIndexStage(job: JobJournalJob): Promise<{ status: 'comp
     return {
       status: 'failed',
       error: error instanceof Error ? error.message : 'Index stage error',
+      errorCode: 'UNKNOWN',
     };
   }
 }

@@ -224,6 +224,7 @@ export async function completeStageExecution(
 export async function failStageExecution(
   executionId: string,
   errorMessage: string,
+  errorCode?: string,
   maxRetries: number = 3,
 ): Promise<void> {
   const db = await getJobJournalDatabase();
@@ -238,12 +239,14 @@ export async function failStageExecution(
   }
 
   const nextAttempt = execution.attempt + 1;
+  const lastErrorStored = `${errorCode ?? 'ERROR'}|${errorMessage}`;
+
   if (nextAttempt >= maxRetries) {
     await db.runAsync(
       `UPDATE stage_executions
        SET status = 'failed', lease_until = NULL, updated_at = ?, last_error = ?
        WHERE id = ?`,
-      [now, errorMessage, executionId],
+      [now, lastErrorStored, executionId],
     );
 
     const jobId = await db.getFirstAsync<{ job_id: string }>(
@@ -263,21 +266,23 @@ export async function failStageExecution(
     `UPDATE stage_executions
      SET status = 'pending', attempt = ?, lease_until = NULL, updated_at = ?, last_error = ?
      WHERE id = ?`,
-    [nextAttempt, now, errorMessage, executionId],
+    [nextAttempt, now, lastErrorStored, executionId],
   );
 }
 
 export async function markExecutionWaitingForModel(
   executionId: string,
   errorMessage: string,
+  errorCode?: string,
 ): Promise<void> {
   const db = await getJobJournalDatabase();
   const now = Date.now();
+  const lastErrorStored = `${errorCode ?? 'WAIT_MODEL'}|${errorMessage}`;
   await db.runAsync(
     `UPDATE stage_executions
      SET status = 'waiting_for_model', lease_until = NULL, updated_at = ?, last_error = ?
      WHERE id = ?`,
-    [now, errorMessage, executionId],
+    [now, lastErrorStored, executionId],
   );
 }
 

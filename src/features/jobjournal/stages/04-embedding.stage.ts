@@ -26,6 +26,7 @@ export async function runEmbeddingStage(
       return {
         status: 'waiting_for_model',
         error: `SigLIP model not ready`,
+        errorCode: 'MODEL_UNAVAILABLE',
       };
     }
 

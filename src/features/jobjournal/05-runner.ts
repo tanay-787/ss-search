@@ -166,7 +166,7 @@ export async function runNextStageExecution(): Promise<boolean> {
     return true;
   }
 
-  let result: { status: 'completed' | 'failed' | 'waiting_for_model'; error?: string };
+  let result: { status: 'completed' | 'failed' | 'waiting_for_model'; error?: string; errorCode?: string };
   const inputError = await validateStageInput(job.id, execution.stage);
   if (inputError) {
     await failStageExecution(execution.id, inputError);
@@ -260,9 +260,9 @@ export async function runNextStageExecution(): Promise<boolean> {
       await failStageExecution(execution.id, `Completion validation failed: ${msg}`);
     }
   } else if (result.status === 'waiting_for_model') {
-    await markExecutionWaitingForModel(execution.id, result.error || 'Waiting for model');
+    await markExecutionWaitingForModel(execution.id, result.error || 'Waiting for model', result.errorCode);
   } else {
-    await failStageExecution(execution.id, result.error || 'Stage failed');
+    await failStageExecution(execution.id, result.error || 'Stage failed', result.errorCode);
   }
 
   return true;
