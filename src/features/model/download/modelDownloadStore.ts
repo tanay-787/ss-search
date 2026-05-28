@@ -191,6 +191,20 @@ export async function startModelDownload() {
     emit();
     await persistState();
     await unregisterModelDownloadTask();
+
+    // Wake up any jobjournal executions that were waiting for the model.
+    // Dynamic import to avoid circular dependency at module load time.
+    try {
+      const executor = await import('../../jobjournal/03-executor');
+      if (executor && typeof executor.retryWaitingForModelExecutions === 'function') {
+        // best-effort; don't block download completion
+        void executor.retryWaitingForModelExecutions();
+      }
+    } catch (err) {
+      // ignore errors from waking up jobjournal; not critical
+      // eslint-disable-next-line no-console
+      console.warn('Failed to notify jobjournal about model readiness', err);
+    }
   } catch (cause) {
     state = {
       ...state,
