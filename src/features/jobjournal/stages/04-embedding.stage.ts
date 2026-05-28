@@ -17,7 +17,8 @@ declare const Buffer: any;
 export async function runEmbeddingStage(
   job: JobJournalJob,
   _execution: JobJournalStageExecution,
-): Promise<{ status: 'completed' | 'waiting_for_model' | 'failed'; error?: string }> {
+  signal?: AbortSignal,
+): Promise<{ status: 'completed' | 'waiting_for_model' | 'failed'; error?: string; errorCode?: string }> {
   try {
     const db = await getJobJournalDatabase();
 
@@ -43,14 +44,15 @@ export async function runEmbeddingStage(
       };
     }
 
-    // Generate embeddings
-    const imageEmbedding = await generateImageEmbedding(job.imageUri);
-    const textEmbedding = await generateTextEmbedding(ocrRow.text);
+    // Generate embeddings (support cooperative cancellation via AbortSignal)
+    const imageEmbedding = await generateImageEmbedding(job.imageUri, signal);
+    const textEmbedding = await generateTextEmbedding(ocrRow.text, signal);
 
     if (!imageEmbedding || !textEmbedding) {
       return {
         status: 'failed',
         error: 'Failed to generate embeddings',
+        errorCode: 'UNKNOWN',
       };
     }
 

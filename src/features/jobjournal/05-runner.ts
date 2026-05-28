@@ -209,10 +209,15 @@ export async function runNextStageExecution(): Promise<boolean> {
         break;
       }
       case 'embedding': {
+        // Create an AbortController to allow cooperative cancellation of embedding work.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
         try {
-          result = await promiseWithTimeout(runEmbeddingStage(job, execution), timeoutMs);
+          result = await runEmbeddingStage(job, execution, controller.signal);
         } catch (err) {
-          result = { status: 'failed', error: err instanceof Error ? err.message : 'Stage timed out' };
+          result = { status: 'failed', error: err instanceof Error ? err.message : 'Stage timed out', errorCode: (err instanceof Error && err.message === 'Aborted') ? 'TIMEOUT' : 'UNKNOWN' };
+        } finally {
+          clearTimeout(timer);
         }
         break;
       }
