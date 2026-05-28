@@ -3,7 +3,7 @@
  * - Stores raw OCR result (text + blocks) for postprocessing stage
  * - Detector type auto-detected but can fallback to 'latin' for robustness
  */
-import MlkitOcr, { type OcrBlock, type OcrResult } from 'rn-mlkit-ocr';
+import { recognizeText, type OcrBlock, type OcrResult } from 'rn-mlkit-ocr';
 
 import { getJobJournalDatabase } from '../storage/database';
 import type { JobJournalJob } from '../types';
@@ -15,7 +15,7 @@ export async function runOcrStage(job: JobJournalJob): Promise<{
   error?: string;
 }> {
   try {
-    const ocrResult = await MlkitOcr.recognizeText(job.imageUri, 'latin');
+    const ocrResult = await recognizeText(job.imageUri, 'latin');
 
     if (!ocrResult || !ocrResult.text) {
       return {
@@ -28,7 +28,7 @@ export async function runOcrStage(job: JobJournalJob): Promise<{
     const now = Date.now();
 
     await db.runAsync(
-      `INSERT OR REPLACE INTO job_journal_ocr
+      `INSERT OR REPLACE INTO ocr_stage_results
        (job_id, text, blocks_json, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?)`,
       [job.id, ocrResult.text, JSON.stringify(ocrResult.blocks), now, now],
@@ -49,7 +49,7 @@ export async function getOcrResult(jobId: string): Promise<OcrResult | null> {
   const row = await db.getFirstAsync<{
     text: string;
     blocks_json: string;
-  }>(`SELECT text, blocks_json FROM job_journal_ocr WHERE job_id = ?`, [jobId]);
+  }>(`SELECT text, blocks_json FROM ocr_stage_results WHERE job_id = ?`, [jobId]);
 
   if (!row) return null;
 

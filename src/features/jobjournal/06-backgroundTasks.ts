@@ -44,7 +44,7 @@ export async function registerJobJournalBackgroundTask() {
         return BackgroundTask.BackgroundTaskResult.Failed;
       }
     });
-  } catch (err) {
+  } catch {
     // defineTask may throw if already defined — ignore
   }
 }

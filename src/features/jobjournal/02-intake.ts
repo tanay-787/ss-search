@@ -1,4 +1,5 @@
 import * as MediaLibrary from 'expo-media-library';
+import { File } from 'expo-file-system';
 
 import {
   loadJobJournalScreenshotSource,
@@ -20,7 +21,13 @@ function getJobId(asset: MediaLibrary.Asset) {
   return `job_${asset.id}`;
 }
 
-function getImageHash(asset: MediaLibrary.Asset) {
+async function getImageHash(asset: MediaLibrary.Asset) {
+  const file = new File(asset.uri);
+  const info = file.info();
+  if (info.exists && info.md5) {
+    return info.md5;
+  }
+
   return [
     asset.id,
     asset.uri,
@@ -42,7 +49,7 @@ async function seedJobForAsset(asset: MediaLibrary.Asset): Promise<{
   const db = await getJobJournalDatabase();
   const now = Date.now();
   const jobId = getJobId(asset);
-  const imageHash = getImageHash(asset);
+  const imageHash = await getImageHash(asset);
   const imageUri = asset.uri;
 
   const existingJob = await db.getFirstAsync<{ id: string }>(
@@ -53,13 +60,13 @@ async function seedJobForAsset(asset: MediaLibrary.Asset): Promise<{
   if (existingJob) {
     const stageExecutionId = getStageExecutionId(existingJob.id, INITIAL_STAGE);
     const existingExecution = await db.getFirstAsync<{ id: string }>(
-      `SELECT id FROM job_journal_stage_executions WHERE id = ?`,
+      `SELECT id FROM stage_executions WHERE id = ?`,
       [stageExecutionId],
     );
 
     if (!existingExecution) {
       await db.runAsync(
-        `INSERT INTO job_journal_stage_executions (
+        `INSERT INTO stage_executions (
           id, job_id, stage, attempt, status, lease_until, created_at, updated_at, last_error
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [stageExecutionId, existingJob.id, INITIAL_STAGE, 0, 'pending', null, now, now, null],
@@ -79,7 +86,7 @@ async function seedJobForAsset(asset: MediaLibrary.Asset): Promise<{
 
   const stageExecutionId = getStageExecutionId(jobId, INITIAL_STAGE);
   await db.runAsync(
-    `INSERT INTO job_journal_stage_executions (
+    `INSERT INTO stage_executions (
       id, job_id, stage, attempt, status, lease_until, created_at, updated_at, last_error
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [stageExecutionId, jobId, INITIAL_STAGE, 0, 'pending', null, now, now, null],

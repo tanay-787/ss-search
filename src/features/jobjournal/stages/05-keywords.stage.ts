@@ -45,7 +45,7 @@ export async function runKeywordsStage(job: JobJournalJob): Promise<{ status: 'c
     const db = await getJobJournalDatabase();
 
     const row = await db.getFirstAsync<{ text: string; blocks_json: string }>(
-      `SELECT text, blocks_json FROM job_journal_ocr_postprocessed WHERE job_id = ?`,
+      `SELECT text, blocks_json FROM ocr_postprocess_stage_results WHERE job_id = ?`,
       [job.id],
     );
 
@@ -102,13 +102,13 @@ export async function runKeywordsStage(job: JobJournalJob): Promise<{ status: 'c
     const now = Date.now();
 
     // Remove existing keywords for job
-    await db.runAsync(`DELETE FROM job_journal_keywords WHERE job_id = ?`, [job.id]);
+    await db.runAsync(`DELETE FROM keyword_stage_results WHERE job_id = ?`, [job.id]);
 
     // Insert keywords
     for (const kw of selected) {
       const id = `${job.id}_kw_${kw.keyword.slice(0,40).replace(/\s+/g,'_')}`;
       await db.runAsync(
-        `INSERT INTO job_journal_keywords (id, job_id, keyword, type, score, positions_json, created_at, updated_at)
+        `INSERT INTO keyword_stage_results (id, job_id, keyword, type, score, positions_json, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, job.id, kw.keyword, entities.find(e=>e.value.toLowerCase()===kw.keyword)?.type || 'term', kw.score, JSON.stringify(kw.positions), now, now],
       );

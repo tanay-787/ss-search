@@ -15,18 +15,23 @@ export {
 export {
   getExecutorStats, runNextStageExecution
 } from './05-runner';
-export { ensureReady as ensureModelReady, getStatus as getModelStatus, isReady as isModelReady } from './modelManager';
+export {
+  configureModelUrls,
+  ensureReady as ensureModelReady,
+  getStatus as getModelStatus,
+  isReady as isModelReady,
+} from './modelManager';
 export { initModelMonitor } from './modelMonitor';
 export { runKeywordsStage } from './stages/05-keywords.stage';
 export { runIndexStage } from './stages/06-index.stage';
-export { getJobJournalDatabase, initializeJobJournalDatabase } from './storage/database';
-export { JOB_JOURNAL_SCHEMA } from './storage/schema';
+export { getJobJournalDatabase, getJobJournalVecStatus, initializeJobJournalDatabase } from './storage/database';
+export { JOB_JOURNAL_SCHEMA, JOB_JOURNAL_VEC_SCHEMA } from './storage/schema';
 
 export type {
   JobJournalCheckpoint,
   JobJournalJob,
   JobJournalStage,
   JobJournalStageExecution,
-  JobJournalStatus
+  JobJournalStatus,
+  SiglipModelState
 } from './types';
-

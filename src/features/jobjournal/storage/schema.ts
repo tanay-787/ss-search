@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS job_journal_jobs (
   updated_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS job_journal_stage_executions (
+CREATE TABLE IF NOT EXISTS stage_executions (
   id TEXT PRIMARY KEY,
   job_id TEXT NOT NULL REFERENCES job_journal_jobs(id) ON DELETE CASCADE,
   stage TEXT NOT NULL,
@@ -23,10 +23,16 @@ CREATE TABLE IF NOT EXISTS job_journal_stage_executions (
   last_error TEXT
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS job_journal_stage_executions_job_stage_idx
-  ON job_journal_stage_executions(job_id, stage);
+CREATE UNIQUE INDEX IF NOT EXISTS stage_executions_job_stage_idx
+  ON stage_executions(job_id, stage);
 
-CREATE TABLE IF NOT EXISTS job_journal_checkpoints (
+CREATE INDEX IF NOT EXISTS stage_executions_status_created_idx
+  ON stage_executions(status, created_at);
+
+CREATE INDEX IF NOT EXISTS stage_executions_running_lease_idx
+  ON stage_executions(status, lease_until);
+
+CREATE TABLE IF NOT EXISTS stage_checkpoints (
   job_id TEXT NOT NULL REFERENCES job_journal_jobs(id) ON DELETE CASCADE,
   stage TEXT NOT NULL,
   output_path TEXT,
@@ -35,7 +41,7 @@ CREATE TABLE IF NOT EXISTS job_journal_checkpoints (
   PRIMARY KEY (job_id, stage)
 );
 
-CREATE TABLE IF NOT EXISTS job_journal_metadata (
+CREATE TABLE IF NOT EXISTS metadata_stage_results (
   job_id TEXT PRIMARY KEY REFERENCES job_journal_jobs(id) ON DELETE CASCADE,
   width INTEGER,
   height INTEGER,
@@ -45,7 +51,7 @@ CREATE TABLE IF NOT EXISTS job_journal_metadata (
   updated_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS job_journal_ocr_results (
+CREATE TABLE IF NOT EXISTS ocr_stage_results (
   job_id TEXT PRIMARY KEY REFERENCES job_journal_jobs(id) ON DELETE CASCADE,
   text TEXT,
   blocks_json TEXT,
@@ -55,7 +61,7 @@ CREATE TABLE IF NOT EXISTS job_journal_ocr_results (
   updated_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS job_journal_ocr_postprocessed (
+CREATE TABLE IF NOT EXISTS ocr_postprocess_stage_results (
   job_id TEXT PRIMARY KEY REFERENCES job_journal_jobs(id) ON DELETE CASCADE,
   text TEXT,
   blocks_json TEXT,
@@ -65,7 +71,7 @@ CREATE TABLE IF NOT EXISTS job_journal_ocr_postprocessed (
   updated_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS job_journal_embeddings (
+CREATE TABLE IF NOT EXISTS embedding_stage_results (
   id TEXT PRIMARY KEY,
   job_id TEXT NOT NULL REFERENCES job_journal_jobs(id) ON DELETE CASCADE,
   modality TEXT NOT NULL,
@@ -74,10 +80,10 @@ CREATE TABLE IF NOT EXISTS job_journal_embeddings (
   updated_at INTEGER NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS job_journal_embeddings_job_modality_idx
-  ON job_journal_embeddings(job_id, modality);
+CREATE UNIQUE INDEX IF NOT EXISTS embedding_stage_results_job_modality_idx
+  ON embedding_stage_results(job_id, modality);
 
-CREATE TABLE IF NOT EXISTS job_journal_keywords (
+CREATE TABLE IF NOT EXISTS keyword_stage_results (
   id TEXT PRIMARY KEY,
   job_id TEXT NOT NULL REFERENCES job_journal_jobs(id) ON DELETE CASCADE,
   keyword TEXT NOT NULL,
@@ -88,6 +94,19 @@ CREATE TABLE IF NOT EXISTS job_journal_keywords (
   updated_at INTEGER NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS job_journal_keywords_job_keyword_idx
-  ON job_journal_keywords(job_id, keyword);
+CREATE UNIQUE INDEX IF NOT EXISTS keyword_stage_results_job_keyword_idx
+  ON keyword_stage_results(job_id, keyword);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS screenshot_search_index USING fts5(
+  job_id UNINDEXED,
+  ocr_text,
+  keywords
+);
+`;
+
+export const JOB_JOURNAL_VEC_SCHEMA = `
+CREATE VIRTUAL TABLE IF NOT EXISTS image_embedding_index USING vec0(
+  embedding float[768],
+  job_id text
+);
 `;

@@ -4,10 +4,10 @@
  *   if the model is not ready the stage returns 'waiting_for_model' so the job can
  *   be retried later when the model becomes available.
  * - Stores native Float32Array buffers as binary BLOBs (no base64) in
- *   job_journal_embeddings with modality 'image' or 'text'.
- * - Keeps model management separate (ModelManager + pipeline siglipModelManager).
+ *   embedding_stage_results with modality 'image' or 'text'.
+ * - Keeps model management separate (ModelManager + siglipModelManager).
  */
-import { generateImageEmbedding, generateTextEmbedding } from '../../pipeline/embeddings';
+import { generateImageEmbedding, generateTextEmbedding } from '../embeddings';
 import { isReady as isModelReady } from '../modelManager';
 import { getJobJournalDatabase } from '../storage/database';
 import type { JobJournalJob, JobJournalStageExecution } from '../types';
@@ -16,7 +16,7 @@ declare const Buffer: any;
 
 export async function runEmbeddingStage(
   job: JobJournalJob,
-  execution: JobJournalStageExecution,
+  _execution: JobJournalStageExecution,
 ): Promise<{ status: 'completed' | 'waiting_for_model' | 'failed'; error?: string }> {
   try {
     const db = await getJobJournalDatabase();
@@ -31,7 +31,7 @@ export async function runEmbeddingStage(
 
     // Fetch OCR postprocessed text
     const ocrRow = await db.getFirstAsync<{ text: string }>(
-      `SELECT text FROM job_journal_ocr_postprocessed WHERE job_id = ?`,
+      `SELECT text FROM ocr_postprocess_stage_results WHERE job_id = ?`,
       [job.id],
     );
 
@@ -63,14 +63,14 @@ export async function runEmbeddingStage(
 
     // Insert image embedding
     await db.runAsync(
-      `INSERT OR REPLACE INTO job_journal_embeddings (id, job_id, modality, vector, created_at, updated_at)
+      `INSERT OR REPLACE INTO embedding_stage_results (id, job_id, modality, vector, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [imageId, job.id, 'image', imageBuffer, now, now],
     );
 
     // Insert text embedding
     await db.runAsync(
-      `INSERT OR REPLACE INTO job_journal_embeddings (id, job_id, modality, vector, created_at, updated_at)
+      `INSERT OR REPLACE INTO embedding_stage_results (id, job_id, modality, vector, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [textId, job.id, 'text', textBuffer, now, now],
     );

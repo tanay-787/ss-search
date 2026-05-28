@@ -11,6 +11,7 @@ import {
   completeStageExecution,
   failStageExecution,
   markExecutionWaitingForModel,
+  recoveryExpiredLeases,
 } from './03-executor';
 import {
   runEmbeddingStage,
@@ -35,6 +36,7 @@ async function getJob(jobId: string): Promise<JobJournalJob | null> {
 }
 
 export async function runNextStageExecution(): Promise<boolean> {
+  await recoveryExpiredLeases();
   const execution = await claimNextStageExecution();
   if (!execution) {
     return false;
@@ -110,7 +112,7 @@ export async function getExecutorStats(): Promise<{
   const db = await getJobJournalDatabase();
 
   const stats = await db.getAllAsync<{ status: string; count: number }>(
-    `SELECT status, COUNT(*) as count FROM job_journal_stage_executions GROUP BY status`,
+    `SELECT status, COUNT(*) as count FROM stage_executions GROUP BY status`,
   );
 
   const result = {

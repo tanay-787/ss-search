@@ -6,9 +6,9 @@
  * - Keeps lifecycle control to the caller: initModelMonitor() returns an unsubscribe teardown
  *   so the app can wire and unwind the monitor where appropriate.
  */
-import type { SiglipModelState } from '../pipeline/types';
+import type { SiglipModelState } from './types';
 import { subscribe as subscribeModel, ensureReady, getStatus } from './modelManager';
-import { retryWaitingForModelExecutions } from './executor';
+import { retryWaitingForModelExecutions } from './03-executor';
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 2000;
@@ -20,7 +20,7 @@ function scheduleRetry() {
   timer = setTimeout(async () => {
     try {
       await retryWaitingForModelExecutions();
-    } catch (err) {
+    } catch {
       // swallow - retry can be triggered again
       // console.warn('retryWaitingForModelExecutions failed', err);
     } finally {
@@ -50,7 +50,7 @@ export function initModelMonitor() {
       if (st.status === 'ready') {
         scheduleRetry();
       }
-    } catch (err) {
+    } catch {
       // ignore - subscription will catch ready state later
     }
   })();

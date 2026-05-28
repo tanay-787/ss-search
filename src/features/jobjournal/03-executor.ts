@@ -22,47 +22,56 @@ function getExecutionId(jobId: string, stage: JobJournalStage) {
 
 export async function claimNextStageExecution(): Promise<JobJournalStageExecution | null> {
   const db = await getJobJournalDatabase();
-  const now = Date.now();
+  let attempts = 0;
 
-  const pendingExecution = await db.getFirstAsync<{
-    id: string;
-    job_id: string;
-    stage: string;
-    attempt: number;
-    created_at: number;
-    updated_at: number;
-  }>(
-    `SELECT id, job_id, stage, attempt, created_at, updated_at
-     FROM job_journal_stage_executions
-     WHERE status = 'pending'
-     ORDER BY created_at ASC
-     LIMIT 1`,
-  );
+  while (attempts < 5) {
+    const now = Date.now();
+    const pendingExecution = await db.getFirstAsync<{
+      id: string;
+      job_id: string;
+      stage: string;
+      attempt: number;
+      created_at: number;
+      updated_at: number;
+    }>(
+      `SELECT id, job_id, stage, attempt, created_at, updated_at
+       FROM stage_executions
+       WHERE status = 'pending'
+       ORDER BY created_at ASC
+       LIMIT 1`,
+    );
 
-  if (!pendingExecution) {
-    return null;
+    if (!pendingExecution) {
+      return null;
+    }
+
+    const leaseUntil = now + LEASE_DURATION_MS;
+    const claimResult = await db.runAsync(
+      `UPDATE stage_executions
+       SET status = 'running', lease_until = ?, updated_at = ?
+       WHERE id = ? AND status = 'pending'`,
+      [leaseUntil, now, pendingExecution.id],
+    );
+
+    if ((claimResult.changes ?? 0) === 0) {
+      attempts += 1;
+      continue;
+    }
+
+    return {
+      id: pendingExecution.id,
+      jobId: pendingExecution.job_id,
+      stage: pendingExecution.stage as JobJournalStage,
+      attempt: pendingExecution.attempt,
+      status: 'running',
+      leaseUntil,
+      createdAt: pendingExecution.created_at,
+      updatedAt: now,
+      lastError: null,
+    };
   }
 
-  const leaseUntil = now + LEASE_DURATION_MS;
-
-  await db.runAsync(
-    `UPDATE job_journal_stage_executions
-     SET status = 'running', lease_until = ?, updated_at = ?
-     WHERE id = ?`,
-    [leaseUntil, now, pendingExecution.id],
-  );
-
-  return {
-    id: pendingExecution.id,
-    jobId: pendingExecution.job_id,
-    stage: pendingExecution.stage as JobJournalStage,
-    attempt: pendingExecution.attempt,
-    status: 'running',
-    leaseUntil,
-    createdAt: pendingExecution.created_at,
-    updatedAt: now,
-    lastError: null,
-  };
+  return null;
 }
 
 export async function completeStageExecution(
@@ -76,7 +85,7 @@ export async function completeStageExecution(
   const nextStage = getNextStage(stage);
 
   await db.runAsync(
-    `UPDATE job_journal_stage_executions
+    `UPDATE stage_executions
      SET status = 'completed', lease_until = NULL, updated_at = ?, last_error = NULL
      WHERE id = ?`,
     [now, executionId],
@@ -84,7 +93,7 @@ export async function completeStageExecution(
 
   if (outputPath) {
     await db.runAsync(
-      `INSERT OR REPLACE INTO job_journal_checkpoints
+      `INSERT OR REPLACE INTO stage_checkpoints
        (job_id, stage, output_path, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?)`,
       [jobId, stage, outputPath, now, now],
@@ -94,7 +103,7 @@ export async function completeStageExecution(
   if (nextStage) {
     const nextExecutionId = getExecutionId(jobId, nextStage);
     await db.runAsync(
-      `INSERT INTO job_journal_stage_executions
+      `INSERT INTO stage_executions
        (id, job_id, stage, attempt, status, lease_until, created_at, updated_at, last_error)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [nextExecutionId, jobId, nextStage, 0, 'pending', null, now, now, null],
@@ -118,7 +127,7 @@ export async function failStageExecution(
   const now = Date.now();
 
   const execution = await db.getFirstAsync<{ attempt: number }>(
-    `SELECT attempt FROM job_journal_stage_executions WHERE id = ?`,
+    `SELECT attempt FROM stage_executions WHERE id = ?`,
     [executionId],
   );
 
@@ -130,14 +139,14 @@ export async function failStageExecution(
 
   if (nextAttempt >= maxRetries) {
     await db.runAsync(
-      `UPDATE job_journal_stage_executions
+      `UPDATE stage_executions
        SET status = 'failed', lease_until = NULL, updated_at = ?, last_error = ?
        WHERE id = ?`,
       [now, errorMessage, executionId],
     );
 
     const jobId = await db.getFirstAsync<{ job_id: string }>(
-      `SELECT job_id FROM job_journal_stage_executions WHERE id = ?`,
+      `SELECT job_id FROM stage_executions WHERE id = ?`,
       [executionId],
     );
 
@@ -149,7 +158,7 @@ export async function failStageExecution(
     }
   } else {
     await db.runAsync(
-      `UPDATE job_journal_stage_executions
+      `UPDATE stage_executions
        SET status = 'pending', attempt = ?, lease_until = NULL, updated_at = ?, last_error = ?
        WHERE id = ?`,
       [nextAttempt, now, errorMessage, executionId],
@@ -165,7 +174,7 @@ export async function markExecutionWaitingForModel(
   const now = Date.now();
 
   await db.runAsync(
-    `UPDATE job_journal_stage_executions
+    `UPDATE stage_executions
      SET status = 'waiting_for_model', lease_until = NULL, updated_at = ?, last_error = ?
      WHERE id = ?`,
     [now, errorMessage, executionId],
@@ -177,7 +186,7 @@ export async function retryWaitingForModelExecutions(): Promise<number> {
   const now = Date.now();
 
   const result = await db.runAsync(
-    `UPDATE job_journal_stage_executions
+    `UPDATE stage_executions
      SET status = 'pending', attempt = 0, lease_until = NULL, updated_at = ?
      WHERE status = 'waiting_for_model'`,
     [now],
@@ -191,7 +200,7 @@ export async function recoveryExpiredLeases(): Promise<number> {
   const now = Date.now();
 
   const result = await db.runAsync(
-    `UPDATE job_journal_stage_executions
+    `UPDATE stage_executions
      SET status = 'pending', lease_until = NULL, updated_at = ?
      WHERE status = 'running' AND lease_until IS NOT NULL AND lease_until < ?`,
     [now, now],
@@ -210,7 +219,7 @@ export async function getStageExecutionStats(): Promise<{
 
   const stats = await db.getAllAsync<{ status: string; count: number }>(
     `SELECT status, COUNT(*) as count
-     FROM job_journal_stage_executions
+     FROM stage_executions
      GROUP BY status`,
   );
 

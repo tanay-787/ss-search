@@ -1,14 +1,15 @@
 /* Idempotent ModelManager for job-journal
- * - Thin, idempotent wrapper around pipeline/siglipModelManager that exposes:
+ * - Thin, idempotent wrapper around jobjournal/siglipModelManager that exposes:
  *   getStatus(), subscribe(), isReady(), ensureReady(), ensureTextReady(), unload().
  * - ensureReady() is safe to call concurrently; it serializes work via loadingPromise.
- * - Delegates downloads/loads to the pipeline manager and initializes the embeddings
+ * - Delegates downloads/loads to the local siglip manager and initializes the embeddings
  *   module so downstream callers can use generateImageEmbedding/generateTextEmbedding.
  * - Keeps model lifecycle separate from embedding stage logic; embedding stage will
  *   return WAITING_FOR_MODEL instead of attempting downloads itself.
  */
-import type { SiglipModelState } from '../pipeline/types';
+import type { SiglipModelState } from './types';
 import {
+  initializeSiglipModels,
   getSiglipModelState,
   subscribeSiglipModelState,
   downloadSiglipVisionAndTokenizer,
@@ -16,20 +17,24 @@ import {
   loadSiglipModels,
   loadSiglipTextModel,
   loadSiglipTokenizer,
-} from '../pipeline/siglipModelManager';
-import { initializeEmbeddings } from '../pipeline/embeddings';
+} from './siglipModelManager';
+import { initializeEmbeddings } from './embeddings';
 
 let siglipInstance: any | null = null;
 let tokenizerInstance: any | null = null;
 let loaded = false;
 let loadingPromise: Promise<void> | null = null;
 
+export async function configureModelUrls(visionUrl: string, textUrl: string, tokenizerUrl: string) {
+  await initializeSiglipModels(visionUrl, textUrl, tokenizerUrl);
+}
+
 /**
  * Lightweight idempotent ModelManager for job-journal embedding stage.
  * - isReady(): quick check
  * - ensureReady(): idempotent download+load of vision+tokenizer
  * - ensureTextReady(): ensure text model is loaded as well
- * - getStatus()/subscribe() => delegate to pipeline model state
+ * - getStatus()/subscribe() => delegate to local model state
  */
 export function getStatus(): SiglipModelState {
   return getSiglipModelState();
@@ -59,7 +64,7 @@ export async function ensureReady(): Promise<void> {
       siglipInstance = await loadSiglipModels();
       tokenizerInstance = await loadSiglipTokenizer();
 
-      // Wire into pipeline embeddings module so other callers can use it
+      // Wire into job-journal embeddings module so other callers can use it
       try {
         initializeEmbeddings(siglipInstance, tokenizerInstance);
       } catch { /* ignore */ }
@@ -94,7 +99,7 @@ export async function ensureTextReady(): Promise<void> {
 
 export function unload(): void {
   try {
-    // best-effort unload via pipeline manager
+    // best-effort unload via local manager
     if (siglipInstance && typeof siglipInstance.unloadModels === 'function') {
       siglipInstance.unloadModels();
     }

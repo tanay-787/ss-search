@@ -36,3 +36,19 @@ export type JobJournalCheckpoint = {
   createdAt: number;
   updatedAt: number;
 };
+
+export type SiglipModelConfig = {
+  visionUrl: string | null;
+  textUrl: string | null;
+  tokenizerUrl: string | null;
+};
+
+export type SiglipModelState = {
+  config: SiglipModelConfig;
+  status: 'idle' | 'downloading' | 'ready' | 'error';
+  progress: number;
+  error: string | null;
+  visionPath: string | null;
+  textPath: string | null;
+  tokenizerPath: string | null;
+};

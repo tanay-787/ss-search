@@ -2,8 +2,6 @@ import { getOcrResult, type OcrBlock } from './02-ocr.stage';
 import { getJobJournalDatabase } from '../storage/database';
 import type { JobJournalJob } from '../types';
 
-const MIN_BLOCK_CONFIDENCE = 0.7;
-
 export interface OcrPostprocessedResult {
   text: string;
   blocks: OcrBlock[];
@@ -62,7 +60,7 @@ export async function runOcrPostprocessStage(job: JobJournalJob): Promise<OcrPos
   const now = Date.now();
 
   await db.runAsync(
-    `INSERT OR REPLACE INTO job_journal_ocr_postprocessed
+    `INSERT OR REPLACE INTO ocr_postprocess_stage_results
      (job_id, text, blocks_json, language, block_count, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [job.id, cleanedText, JSON.stringify(filteredBlocks), detectedLanguage, filteredBlocks.length, now, now],
@@ -84,7 +82,7 @@ export async function getOcrPostprocessed(jobId: string): Promise<OcrPostprocess
     blocks_json: string;
     language: string;
     block_count: number;
-  }>(`SELECT text, blocks_json, language, block_count FROM job_journal_ocr_postprocessed WHERE job_id = ?`, [jobId]);
+  }>(`SELECT text, blocks_json, language, block_count FROM ocr_postprocess_stage_results WHERE job_id = ?`, [jobId]);
 
   if (!row) return null;
 

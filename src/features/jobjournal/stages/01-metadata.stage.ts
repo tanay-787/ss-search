@@ -48,7 +48,7 @@ export async function runMetadataStage(job: JobJournalJob): Promise<MetadataResu
   const db = await getJobJournalDatabase();
 
   await db.runAsync(
-    `INSERT OR REPLACE INTO job_journal_metadata
+    `INSERT OR REPLACE INTO metadata_stage_results
      (job_id, width, height, file_size, file_exists, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [job.id, width, height, fileSize, fileExists ? 1 : 0, now, now],
@@ -70,7 +70,7 @@ export async function getMetadata(jobId: string): Promise<MetadataResult | null>
     height: number | null;
     file_size: number | null;
     file_exists: number;
-  }>(`SELECT width, height, file_size, file_exists FROM job_journal_metadata WHERE job_id = ?`, [
+  }>(`SELECT width, height, file_size, file_exists FROM metadata_stage_results WHERE job_id = ?`, [
     jobId,
   ]);
 

@@ -6,11 +6,14 @@
 01-source.ts          → Load live screenshot source
 02-intake.ts          → Ingest & dedupe → create jobs
 03-executor.ts        → Manage execution state (claim/complete/fail/recover)
-04-runner.ts          → Orchestrate stage execution
-05-stages/            → Individual stage implementations (DAG order)
-06-modelManager.ts    → Model lifecycle (download/load/ready)
-07-modelMonitor.ts    → Monitor model state, auto-retry waiting jobs
-08-backgroundTasks.ts → Schedule background work
+04-stages.ts          → Stage exports (DAG order)
+05-runner.ts          → Orchestrate stage execution
+06-backgroundTasks.ts → Schedule background work
+embeddings.ts         → SigLIP embedding generation runtime
+modelManager.ts       → Model lifecycle (download/load/ready)
+modelMonitor.ts       → Monitor model state, auto-retry waiting jobs
+siglipModelManager.ts → SigLIP binary download/load helpers
+siglipTokenizer.ts    → SigLIP tokenizer implementation
 ```
 
 ## Stage DAG Flow (Inner Numbering within `stages/`)
