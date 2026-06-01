@@ -1,25 +1,30 @@
+import { md3DarkTheme, md3LightTheme } from '@/theme/paper';
 import { Stack } from 'expo-router';
-import { MD3DarkTheme, MD3LightTheme, PaperProvider } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { HeroUINativeProvider } from 'heroui-native/provider';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-
-import { PipelineInitializer } from '@/features/pipeline/components/PipelineInitializer';
+import { PaperProvider } from 'react-native-paper';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import './global.css';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? MD3DarkTheme : MD3LightTheme;
+  const theme = colorScheme === 'dark' ? md3DarkTheme : md3LightTheme;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <PaperProvider theme={theme}>
-          <PipelineInitializer>
-            <StatusBar style={theme.dark ? 'light' : 'dark'} />
-            <Stack screenOptions={{ headerShown: false }} />
-          </PipelineInitializer>
-        </PaperProvider>
+        <HeroUINativeProvider>
+          <PaperProvider theme={theme}>
+            <StatusBar style={theme.dark ? 'light' : 'dark'} backgroundColor={theme.colors.background} />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="model" />
+            </Stack>
+          </PaperProvider>
+        </HeroUINativeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

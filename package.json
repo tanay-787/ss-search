@@ -40,6 +40,7 @@
     "expo-system-ui": "~55.0.18",
     "expo-task-manager": "~55.0.16",
     "expo-web-browser": "~55.0.16",
+    "heroui-native": "^1.0.4",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.6",
@@ -52,9 +53,14 @@
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.23.0",
     "react-native-siglip": "^0.1.1",
+    "react-native-svg": "^15.15.5",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.7.4",
-    "rn-mlkit-ocr": "^0.3.1"
+    "rn-mlkit-ocr": "^0.3.1",
+    "tailwind-merge": "^3.6.0",
+    "tailwind-variants": "^3.2.2",
+    "tailwindcss": "^4.3.0",
+    "uniwind": "^1.7.0"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",

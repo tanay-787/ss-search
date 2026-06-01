@@ -1,0 +1,7 @@
+@import 'tailwindcss';
+@import 'uniwind';
+
+@import 'heroui-native/styles';
+
+/* Path to the heroui-native lib inside node_modules relative to this file */
+@source '../../node_modules/heroui-native/lib';

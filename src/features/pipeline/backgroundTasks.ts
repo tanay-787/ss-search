@@ -129,6 +129,20 @@ export async function scheduleBackgroundTasks() {
   }
 }
 
+export async function unregisterBackgroundTasks() {
+  try {
+    await BackgroundTask.unregisterTaskAsync(OCR_TASK_NAME);
+  } catch (error) {
+    console.warn('Failed to unregister OCR task:', error);
+  }
+
+  try {
+    await BackgroundTask.unregisterTaskAsync(EMBEDDING_TASK_NAME);
+  } catch (error) {
+    console.warn('Failed to unregister embedding task:', error);
+  }
+}
+
 export async function processNow() {
   await processOcrQueue();
   await processEmbeddingQueue();

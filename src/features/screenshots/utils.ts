@@ -2,6 +2,8 @@ import * as MediaLibrary from 'expo-media-library';
 
 import { SCREENSHOT_NAME_RE } from './constants';
 
+const DEV_SCREENSHOT_LIMIT = 15;
+
 export function isScreenshotAsset(asset: MediaLibrary.Asset) {
   return SCREENSHOT_NAME_RE.test(asset.filename);
 }
@@ -31,7 +33,7 @@ export async function loadScreenshotAssets() {
     screenshotAlbums.map(async (album) => {
       const page = await MediaLibrary.getAssetsAsync({
         album,
-        first: 100,
+        first: __DEV__ ? DEV_SCREENSHOT_LIMIT : 100,
         mediaType: [MediaLibrary.MediaType.photo],
         sortBy: [MediaLibrary.SortBy.creationTime],
       });
@@ -40,7 +42,9 @@ export async function loadScreenshotAssets() {
     }),
   );
 
-  return uniqueAssets(albumAssets.flat()).sort((left, right) => right.creationTime - left.creationTime);
+  const assets = uniqueAssets(albumAssets.flat()).sort((left, right) => right.creationTime - left.creationTime);
+
+  return __DEV__ ? assets.slice(0, DEV_SCREENSHOT_LIMIT) : assets;
 }
 
 /**

@@ -9,6 +9,7 @@ type VecStatus = {
 };
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
+let initializationPromise: Promise<void> | null = null;
 let vecStatus: VecStatus = { available: false, error: null };
 
 export function getJobJournalVecStatus() {
@@ -39,45 +40,59 @@ async function loadVecExtension(db: SQLite.SQLiteDatabase) {
 }
 
 async function initializeDatabase(db: SQLite.SQLiteDatabase) {
-  await db.execAsync(JOB_JOURNAL_SCHEMA);
-
-  // Run one-time migration for last_error column split
-  await migrateLastErrorColumn(db);
-
-  // Ensure system_health table exists for storing periodic integrity checks
-  await db.execAsync(`CREATE TABLE IF NOT EXISTS system_health (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    check_time INTEGER NOT NULL,
-    check_type TEXT NOT NULL,
-    result TEXT NOT NULL
-  );`);
-
-  await loadVecExtension(db);
-  if (vecStatus.available) {
-    await db.execAsync(JOB_JOURNAL_VEC_SCHEMA);
+  if (initializationPromise) {
+    return initializationPromise;
   }
 
-  // Perform an immediate integrity check at startup and persist the result
-  try {
-    await performIntegrityCheck(db);
-  } catch (err) {
-    // best-effort: don't block initialization on health check failures
-     
-    console.warn('Database integrity check at startup failed:', err);
-  }
+  initializationPromise = (async () => {
+    await db.execAsync(JOB_JOURNAL_SCHEMA);
+
+    // Run one-time migration for last_error column split
+    await migrateLastErrorColumn(db);
+
+    // Ensure system_health table exists for storing periodic integrity checks
+    await db.execAsync(`CREATE TABLE IF NOT EXISTS system_health (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      check_time INTEGER NOT NULL,
+      check_type TEXT NOT NULL,
+      result TEXT NOT NULL
+    );`);
+
+    await loadVecExtension(db);
+    if (vecStatus.available) {
+      await db.execAsync(JOB_JOURNAL_VEC_SCHEMA);
+    }
+
+    // Perform an immediate integrity check at startup and persist the result
+    try {
+      await performIntegrityCheck(db);
+    } catch (err) {
+      // best-effort: don't block initialization on health check failures
+      console.warn('Database integrity check at startup failed:', err);
+    }
+  })();
+
+  return initializationPromise;
 }
 
 async function migrateLastErrorColumn(db: SQLite.SQLiteDatabase) {
   try {
-    // If migration already done, skip
-    const hasNewColumns = await (db as any).getAllAsync?.(
-      `PRAGMA table_info(stage_executions) WHERE name IN ('last_error_code', 'last_error_message');`,
+    const columns = await db.getAllAsync<{ name: string }>(
+      `PRAGMA table_info(stage_executions);`,
     );
-    if (hasNewColumns && hasNewColumns.length >= 2) {
+    const columnNames = new Set(columns.map((column) => column.name));
+
+    if (!columnNames.has('last_error_code')) {
+      await db.runAsync(`ALTER TABLE stage_executions ADD COLUMN last_error_code TEXT;`);
+    }
+    if (!columnNames.has('last_error_message')) {
+      await db.runAsync(`ALTER TABLE stage_executions ADD COLUMN last_error_message TEXT;`);
+    }
+
+    if (!columnNames.has('last_error')) {
       return;
     }
 
-    // Backfill: parse existing last_error strings (format: "CODE|message") into new columns
     const rows = await db.getAllAsync<{ id: string; last_error: string | null }>(
       `SELECT id, last_error FROM stage_executions WHERE last_error IS NOT NULL`,
     );
@@ -99,7 +114,6 @@ async function migrateLastErrorColumn(db: SQLite.SQLiteDatabase) {
     }
   } catch (err) {
     // Migration is best-effort; if columns already exist or update fails, continue
-    // eslint-disable-next-line no-console
     console.warn('Failed to migrate last_error column:', err);
   }
 }

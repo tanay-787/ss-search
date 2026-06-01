@@ -16,6 +16,11 @@ export {
   getExecutorStats, runNextStageExecution
 } from './05-runner';
 export {
+  registerJobJournalBackgroundTask,
+  scheduleJobJournalBackgroundTask,
+  unregisterJobJournalBackgroundTask
+} from './06-backgroundTasks';
+export {
   configureModelUrls,
   ensureReady as ensureModelReady,
   getStatus as getModelStatus,
