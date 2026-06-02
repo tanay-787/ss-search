@@ -3,10 +3,14 @@ import { Card } from 'heroui-native/card';
 import { Spinner } from 'heroui-native/spinner';
 import { Text } from 'heroui-native/text';
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { initializeJobJournalDatabase, initModelMonitor, registerJobJournalBackgroundTask, scheduleJobJournalBackgroundTask } from '@/features/jobjournal';
+import { 
+  initializeJobJournalDatabase, 
+  registerJobJournalBackgroundTask, 
+  scheduleJobJournalBackgroundTask 
+} from '@/features/jobjournal';
 import { unregisterBackgroundTasks } from '@/features/pipeline/backgroundTasks';
 
 export default function IndexScreen() {
@@ -14,23 +18,24 @@ export default function IndexScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-
     (async () => {
       try {
+        // Initialize the durable workflow system
         await initializeJobJournalDatabase();
+        
+        // Clean up legacy pipeline background tasks
         await unregisterBackgroundTasks();
+        
+        // Setup new job journal background execution
         await registerJobJournalBackgroundTask();
         await scheduleJobJournalBackgroundTask();
-        initModelMonitor();
-        router.replace('/(tabs)/home')
-
+        
+        // Navigate to the main application
+        router.replace('/(tabs)/home');
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'Failed to initialize app');
       }
     })();
-
-    return () => {
-    };
   }, [router]);
 
   return (
@@ -46,7 +51,7 @@ export default function IndexScreen() {
                 </>
               ) : (
                 <>
-                  <Spinner />
+                  <Spinner size="lg" />
                   <Text style={styles.title}>Preparing your library</Text>
                   <Text style={styles.subtitle}>Loading screens, search data, and background tasks.</Text>
                 </>
@@ -59,45 +64,47 @@ export default function IndexScreen() {
   );
 }
 
-const styles = {
+const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: '#000',
   },
   safeArea: {
     flex: 1,
   },
   body: {
     flex: 1,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    paddingHorizontal: 24,
-  },
-  card: {
-    width: '100%',
+    padding: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
-    alignItems: 'center' as const,
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
+    padding: 24,
+    alignItems: 'center',
   },
   title: {
-    textAlign: 'center' as const,
-    fontSize: 18,
-    fontWeight: '600' as const,
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 16,
+    textAlign: 'center',
+    color: '#fff',
   },
   subtitle: {
-    textAlign: 'center' as const,
-    opacity: 0.7,
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
   },
   errorTitle: {
-    textAlign: 'center' as const,
     fontSize: 18,
-    fontWeight: '600' as const,
+    fontWeight: 'bold',
+    color: '#ff4444',
+    textAlign: 'center',
   },
   errorText: {
-    textAlign: 'center' as const,
-    opacity: 0.8,
+    fontSize: 14,
+    color: '#fff',
+    marginTop: 8,
+    textAlign: 'center',
   },
-};
+});
