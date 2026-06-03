@@ -62,16 +62,62 @@ export async function hybridSearch(
       console.warn('[hybridSearch] Vector search failed:', err instanceof Error ? err.message : String(err));
     }
   }
+// 2. Keyword/Text Search (FTS5)
+// Layer A: Standard Word-based Prefix Matching
+const tokens = sanitizedQuery.replace(/[^\w\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
 
-  // 2. Keyword/Text Search (FTS5)
-  const tokens = sanitizedQuery.replace(/[^\w\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
-  
-  if (tokens.length > 0) {
-    const ftsQuery = tokens.map(t => `${t}*`).join(' AND ');
-    console.log(`[hybridSearch] Attempting FTS search with: "${ftsQuery}"`);
-    
+if (tokens.length > 0) {
+  const ftsQuery = tokens.map(t => `${t}*`).join(' AND ');
+  console.log(`[hybridSearch] Attempting standard FTS search with: "${ftsQuery}"`);
+
+  try {
+    const ftsResults = await db.getAllAsync<{
+      job_id: string;
+      ocr_text: string;
+      keywords: string;
+      uri: string;
+    }>(`
+      SELECT 
+        idx.job_id,
+        idx.ocr_text,
+        idx.keywords,
+        j.image_uri as uri
+      FROM screenshot_search_index idx
+      JOIN job_journal_jobs j ON j.id = idx.job_id
+      WHERE screenshot_search_index MATCH ?
+      ORDER BY rank
+      LIMIT ?
+    `, [ftsQuery, limit]);
+
+    ftsResults.forEach((row) => {
+      const existing = candidates.get(row.job_id);
+      if (existing) {
+        existing.score = Math.min(1.0, existing.score + 0.3);
+        existing.searchMethod = 'hybrid';
+      } else {
+        candidates.set(row.job_id, {
+          jobId: row.job_id,
+          uri: row.uri,
+          ocrText: row.ocr_text || '',
+          keywords: row.keywords ? row.keywords.split(' ') : [],
+          score: 0.9, // High base score for exact word prefix match
+          searchMethod: 'fts',
+        });
+      }
+    });
+    console.log(`[hybridSearch] Standard FTS returned ${ftsResults.length} matches`);
+  } catch (err) {
+    console.warn('[hybridSearch] Standard FTS search failed:', err);
+  }
+
+  // Layer B: Trigram-based Fuzzy/Substring Matching
+  // Only run if we don't have enough results or as a complementary layer
+  if (candidates.size < limit) {
+    const trigramQuery = `"${sanitizedQuery}"`;
+    console.log(`[hybridSearch] Attempting Trigram fuzzy search with: ${trigramQuery}`);
+
     try {
-      const ftsResults = await db.getAllAsync<{
+      const triResults = await db.getAllAsync<{
         job_id: string;
         ocr_text: string;
         keywords: string;
@@ -82,35 +128,34 @@ export async function hybridSearch(
           idx.ocr_text,
           idx.keywords,
           j.image_uri as uri
-        FROM screenshot_search_index idx
+        FROM screenshot_search_trigram idx
         JOIN job_journal_jobs j ON j.id = idx.job_id
-        WHERE screenshot_search_index MATCH ?
+        WHERE screenshot_search_trigram MATCH ?
         ORDER BY rank
         LIMIT ?
-      `, [ftsQuery, limit]);
+      `, [trigramQuery, limit]);
 
-      ftsResults.forEach((row) => {
+      triResults.forEach((row) => {
         const existing = candidates.get(row.job_id);
         if (existing) {
-          existing.score = Math.min(1.0, existing.score + 0.2);
-          existing.searchMethod = 'hybrid';
-          existing.keywords = row.keywords ? row.keywords.split(' ') : [];
+          existing.score = Math.min(1.0, existing.score + 0.1);
         } else {
           candidates.set(row.job_id, {
             jobId: row.job_id,
             uri: row.uri,
             ocrText: row.ocr_text || '',
             keywords: row.keywords ? row.keywords.split(' ') : [],
-            score: 0.8,
-            searchMethod: 'fts',
+            score: 0.7, // Lower base score for fuzzy trigram match
+            searchMethod: 'fts', // Categorized as text search
           });
         }
       });
-      console.log(`[hybridSearch] FTS search returned ${ftsResults.length} matches`);
+      console.log(`[hybridSearch] Trigram search returned ${triResults.length} matches`);
     } catch (err) {
-      console.warn('[hybridSearch] FTS search failed:', err);
+      console.warn('[hybridSearch] Trigram search failed:', err);
     }
   }
+}
 
   const finalResults = Array.from(candidates.values())
     .sort((a, b) => b.score - a.score)

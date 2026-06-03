@@ -15,6 +15,8 @@ export async function runOcrStage(job: JobJournalJob): Promise<{
   error?: string;
 }> {
   try {
+    // Note: 'latin' is the authoritative English model in ML Kit v2 on-device.
+    // It provides the best precision/speed balance for English text.
     const ocrResult = await recognizeText(job.imageUri, 'latin');
 
     if (!ocrResult) {

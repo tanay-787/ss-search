@@ -1,10 +1,9 @@
 /* Job Journal background task runner
  * - Defines a short-lived background task that claims and executes a small number
  *   of stage executions per invocation to respect OS background time budgets.
- * - Limits work per invocation via processOnce(maxIterations) to avoid overruns.
- * - Use scheduleJobJournalBackgroundTask() to register with the OS, and
- *   processJobJournalNow() for immediate foreground debugging.
- * - Task definition MUST happen at the top level for Expo TaskManager.
+ * - Optimized Sequential Flow: Processes one task at a time to minimize memory 
+ *   pressure and native resource contention (best for ML Kit & ExecuTorch).
+ * - High Throughput: Tight loop with zero downtime between tasks.
  */
 import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
@@ -13,21 +12,29 @@ import { runNextStageExecution } from './05-runner';
 const JOB_JOURNAL_TASK_NAME = 'JOB_JOURNAL_RUNNER_TASK';
 
 /**
- * Process loop for a single background invocation. Limits work to avoid overrunning OS budget.
+ * Process loop for a single background invocation. 
+ * Drains the queue sequentially to avoid native resource contention.
  */
-async function processOnce(maxIterations = 8) {
+async function processOnce(maxIterations = 32) {
   let processed = 0;
+  
   for (let i = 0; i < maxIterations; i++) {
     try {
+      // runNextStageExecution is model-aware and prioritized.
+      // It returns true if it performed work, false if nothing was available.
       const didWork = await runNextStageExecution();
-      if (!didWork) break;
+      
+      if (!didWork) {
+        break; // Queue is empty or blocked
+      }
+      
       processed++;
     } catch (err) {
-      // Swallow and continue a small number of times; task invocation will be retried by OS
-      console.error('job-journal runner error', err);
-      break;
+      console.error('[backgroundTasks] Task execution error:', err);
+      // Continue to next iteration for robustness unless a fatal error occurs
     }
   }
+
   return processed;
 }
 
@@ -35,7 +42,9 @@ async function processOnce(maxIterations = 8) {
 try {
   TaskManager.defineTask(JOB_JOURNAL_TASK_NAME, async () => {
     try {
-      await processOnce();
+      console.log('[backgroundTasks] Starting background processing cycle...');
+      const count = await processOnce(16); // Lower limit for background to avoid OS termination
+      console.log(`[backgroundTasks] Background cycle finished. Processed ${count} tasks.`);
       return BackgroundTask.BackgroundTaskResult.Success;
     } catch (err) {
       console.error('JobJournal background task failed:', err);
@@ -47,8 +56,7 @@ try {
 }
 
 export async function registerJobJournalBackgroundTask() {
-  // defineTask is handled at top level. 
-  // This is kept for compatibility with existing initialization flows.
+  // defineTask is handled at top level.
 }
 
 export async function scheduleJobJournalBackgroundTask(minimumIntervalMinutes = 15) {
@@ -76,16 +84,11 @@ export async function unregisterJobJournalBackgroundTask() {
 }
 
 /**
- * Run the runner loop immediately in-process (foreground). Useful for debugging.
+ * Run the runner loop immediately in-process (foreground). 
+ * Higher iteration limit for active app sessions.
  */
-export async function processJobJournalNow(iterations = 64) {
-  let total = 0;
-  for (let i = 0; i < iterations; i++) {
-    const didWork = await runNextStageExecution();
-    if (!didWork) break;
-    total++;
-  }
-  return total;
+export async function processJobJournalNow(iterations = 128) {
+  return await processOnce(iterations);
 }
 
 export { JOB_JOURNAL_TASK_NAME };

@@ -47,6 +47,16 @@ async function initializeDatabase(db: SQLite.SQLiteDatabase) {
   initializationPromise = (async () => {
     await db.execAsync(JOB_JOURNAL_SCHEMA);
 
+    // Ensure trigram table exists (migration for existing users)
+    await db.execAsync(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS screenshot_search_trigram USING fts5(
+        job_id UNINDEXED,
+        ocr_text,
+        keywords,
+        tokenize='trigram'
+      );
+    `);
+
     // Run one-time migration for last_error column split
     await migrateLastErrorColumn(db);
 

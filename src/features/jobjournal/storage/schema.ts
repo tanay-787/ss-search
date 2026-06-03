@@ -114,6 +114,13 @@ CREATE VIRTUAL TABLE IF NOT EXISTS screenshot_search_index USING fts5(
   ocr_text,
   keywords
 );
+
+CREATE VIRTUAL TABLE IF NOT EXISTS screenshot_search_trigram USING fts5(
+  job_id UNINDEXED,
+  ocr_text,
+  keywords,
+  tokenize='trigram'
+);
 `;
 
 export const JOB_JOURNAL_VEC_SCHEMA = `

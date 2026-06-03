@@ -23,12 +23,21 @@ export async function runIndexFtsStage(job: JobJournalJob): Promise<{ status: 'c
     const ftsReady = ocrText.trim().length > 0 || keywordsText.trim().length > 0;
     const keywordsReady = keywordsText.trim().length > 0;
 
-    // 1. Update FTS Index
+    // 1. Update FTS Indices
     // Explicitly delete old entries to ensure idempotency (FTS5 doesn't support UNIQUE string IDs)
     await db.runAsync(`DELETE FROM screenshot_search_index WHERE job_id = ?`, [job.id]);
+    await db.runAsync(`DELETE FROM screenshot_search_trigram WHERE job_id = ?`, [job.id]);
     
+    // Insert into standard word-based index
     await db.runAsync(
       `INSERT INTO screenshot_search_index (job_id, ocr_text, keywords)
+       VALUES (?, ?, ?)`,
+      [job.id, ocrText, keywordsText],
+    );
+
+    // Insert into trigram-based fuzzy index
+    await db.runAsync(
+      `INSERT INTO screenshot_search_trigram (job_id, ocr_text, keywords)
        VALUES (?, ?, ?)`,
       [job.id, ocrText, keywordsText],
     );

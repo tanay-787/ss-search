@@ -19,7 +19,8 @@ import {
   runEmbeddingStage,
 } from './stages/04-embedding.stage';
 import { getJobJournalDatabase } from './storage/database';
-import type { JobJournalJob, JobJournalStage } from './types';
+import { isReady as isModelReady } from './modelManager';
+import type { JobJournalJob, JobJournalStage, JobJournalStageExecution } from './types';
 
 import {
   runMetadataStage,
@@ -149,51 +150,11 @@ async function validateStageInput(jobId: string, stage: JobJournalStage): Promis
 }
 
 /**
- * Runner orchestrates stage execution.
- * It periodically renews execution leases (heartbeat) and wraps stages 
- * in timeouts to ensure system stability.
+ * Core execution logic for a claimed stage.
  */
-export async function runNextStageExecution(): Promise<boolean> {
-  await recoveryExpiredLeases();
-  const execution = await claimNextStageExecution();
-  if (!execution) return false;
-
-  console.log(`[runner] Claimed: ${execution.stage} (Job: ${execution.jobId})`);
-  // ...
-
+async function runStageExecution(execution: JobJournalStageExecution): Promise<boolean> {
   const job = await getJob(execution.jobId);
   
-  // Track current claimed execution so that graceful shutdown can revoke the lease
-  currentExecutionId = execution.id;
-  if (!shutdownHandlerInstalled) {
-    // Install handlers if environment supports process signals
-    if (typeof process !== 'undefined' && typeof (process as any).on === 'function') {
-      const handleSignal = async (sig: string) => {
-        try {
-          if (currentExecutionId) {
-            // best-effort revoke; ignore errors
-            await revokeExecutionLease(currentExecutionId);
-             
-            console.log(`revoked execution lease for ${currentExecutionId} due to signal ${sig}`);
-          }
-        } catch (err) {
-           
-          console.error('Error revoking execution lease during shutdown', err);
-        } finally {
-          // exit after attempting revoke
-          try {
-            process.exit(0);
-          } catch {
-            // ignore
-          }
-        }
-      };
-      (process as any).on('SIGINT', () => void handleSignal('SIGINT'));
-      (process as any).on('SIGTERM', () => void handleSignal('SIGTERM'));
-    }
-    shutdownHandlerInstalled = true;
-  }
-
   if (!job) {
     console.error(`[runner] Job not found: ${execution.jobId}`);
     await failStageExecution(execution.id, `Job not found: ${execution.jobId}`);
@@ -294,8 +255,6 @@ export async function runNextStageExecution(): Promise<boolean> {
     };
   } finally {
     if (heartbeat) clearInterval(heartbeat);
-    // clear current execution marker so shutdown handler won't try to revoke it
-    currentExecutionId = null;
   }
 
   console.log(`[runner] Stage ${execution.stage} finished with status: ${result.status}${result.error ? ` (Error: ${result.error})` : ''}`);
@@ -321,6 +280,75 @@ export async function runNextStageExecution(): Promise<boolean> {
   }
 
   return true;
+}
+
+/**
+ * Runner orchestrates stage execution.
+ * It periodically renews execution leases (heartbeat) and wraps stages 
+ * in timeouts to ensure system stability.
+ */
+export async function runNextStageExecution(): Promise<boolean> {
+  await recoveryExpiredLeases();
+  
+  // Model-aware claiming: only allow heavy tasks if model is ready
+  const execution = await claimNextStageExecution({ allowHeavy: isModelReady() });
+  if (!execution) return false;
+
+  console.log(`[runner] Claimed: ${execution.stage} (Job: ${execution.jobId})`);
+
+  // Track current claimed execution so that graceful shutdown can revoke the lease
+  currentExecutionId = execution.id;
+  if (!shutdownHandlerInstalled) {
+    // Install handlers if environment supports process signals
+    if (typeof process !== 'undefined' && typeof (process as any).on === 'function') {
+      const handleSignal = async (sig: string) => {
+        try {
+          if (currentExecutionId) {
+            // best-effort revoke; ignore errors
+            await revokeExecutionLease(currentExecutionId);
+             
+            console.log(`revoked execution lease for ${currentExecutionId} due to signal ${sig}`);
+          }
+        } catch (err) {
+           
+          console.error('Error revoking execution lease during shutdown', err);
+        } finally {
+          // exit after attempting revoke
+          try {
+            process.exit(0);
+          } catch {
+            // ignore
+          }
+        }
+      };
+      (process as any).on('SIGINT', () => void handleSignal('SIGINT'));
+      (process as any).on('SIGTERM', () => void handleSignal('SIGTERM'));
+    }
+    shutdownHandlerInstalled = true;
+  }
+
+  try {
+    return await runStageExecution(execution);
+  } finally {
+    // clear current execution marker so shutdown handler won't try to revoke it
+    currentExecutionId = null;
+  }
+}
+
+/**
+ * Advanced concurrent execution: scheduler can claim and run multiple tasks.
+ */
+export async function claimAndRunNextExecution(options: { allowHeavy: boolean }): Promise<boolean> {
+  const execution = await claimNextStageExecution(options);
+  if (!execution) return false;
+  
+  try {
+    await runStageExecution(execution);
+    return true;
+  } catch (err) {
+    console.error(`[runner] Concurrent execution failed for ${execution.stage}:`, err);
+    return true; // continue processing other tasks
+  }
 }
 
 export async function getExecutorStats(): Promise<{

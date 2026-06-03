@@ -34,9 +34,23 @@ function placeholders(count: number) {
 }
 
 /**
- * Enqueues children stages for a given job and stage.
- * Validates dependencies to ensure all prerequisites are completed.
+ * Simple Mutex for serializing database write transactions.
  */
+class Mutex {
+  private promise: Promise<void> = Promise.resolve();
+
+  async lock() {
+    let resolve: () => void;
+    const next = new Promise<void>(res => { resolve = res; });
+    const prev = this.promise;
+    this.promise = next;
+    await prev;
+    return () => resolve();
+  }
+}
+
+const writeMutex = new Mutex();
+
 async function enqueueReadyChildren(jobId: string, stage: JobJournalStage, now: number) {
   const db = await getJobJournalDatabase();
   const children = STAGE_CHILDREN[stage];
@@ -116,12 +130,14 @@ async function markJobCompletedIfTerminal(jobId: string, now: number) {
   }
 }
 
-export async function claimNextStageExecution(): Promise<JobJournalStageExecution | null> {
+export async function claimNextStageExecution(options?: { allowHeavy?: boolean }): Promise<JobJournalStageExecution | null> {
   const db = await getJobJournalDatabase();
+  const allowHeavy = options?.allowHeavy ?? true;
   let attempts = 0;
 
   while (attempts < 5) {
     const now = Date.now();
+    
     const pendingExecution = await db.getFirstAsync<{
       id: string;
       job_id: string;
@@ -133,8 +149,12 @@ export async function claimNextStageExecution(): Promise<JobJournalStageExecutio
       `SELECT id, job_id, stage, attempt, created_at, updated_at
        FROM stage_executions
        WHERE status = 'pending'
+       ${!allowHeavy ? "AND stage NOT IN ('embedding', 'index_vec')" : ""}
        ORDER BY 
-         (CASE WHEN stage = 'index_fts' THEN 0 ELSE 1 END) ASC,
+         (CASE 
+            WHEN stage IN ('metadata', 'ocr', 'ocr_postprocess', 'keywords', 'index_fts', 'index') THEN 0 
+            ELSE 1 
+          END) ASC,
          created_at ASC
        LIMIT 1`,
     );
@@ -199,67 +219,71 @@ export async function completeStageExecution(
   stage: JobJournalStage,
   outputPath?: string,
 ): Promise<void> {
-  console.log(`[executor] Completing stage ${stage} for job ${jobId}`);
-  const db = await getJobJournalDatabase();
-  const now = Date.now();
-
-  await db.execAsync('BEGIN IMMEDIATE');
+  const unlock = await writeMutex.lock();
+  
   try {
-    // Verify that the stage has produced the expected output before marking completed.
-    // This avoids enqueueing children when parent outputs haven't been persisted yet.
-    if (stage === 'metadata') {
-      const row = await db.getFirstAsync<{ job_id: string }>(
-        `SELECT job_id FROM metadata_stage_results WHERE job_id = ?`,
-        [jobId],
+    console.log(`[executor] Completing stage ${stage} for job ${jobId}`);
+    const db = await getJobJournalDatabase();
+    const now = Date.now();
+
+    await db.execAsync('BEGIN IMMEDIATE');
+    try {
+      if (stage === 'metadata') {
+        const row = await db.getFirstAsync<{ job_id: string }>(
+          `SELECT job_id FROM metadata_stage_results WHERE job_id = ?`,
+          [jobId],
+        );
+        if (!row) throw new Error(`Metadata result missing for job ${jobId}`);
+      } else if (stage === 'ocr') {
+        const row = await db.getFirstAsync<{ job_id: string }>(`SELECT job_id FROM ocr_stage_results WHERE job_id = ?`, [jobId]);
+        if (!row) throw new Error(`OCR result missing for job ${jobId}`);
+      } else if (stage === 'ocr_postprocess') {
+        const row = await db.getFirstAsync<{ job_id: string }>(
+          `SELECT job_id FROM ocr_postprocess_stage_results WHERE job_id = ?`,
+          [jobId],
+        );
+        if (!row) throw new Error(`OCR postprocess result missing for job ${jobId}`);
+      } else if (stage === 'embedding') {
+        const row = await db.getFirstAsync<{ id: string }>(
+          `SELECT id FROM embedding_stage_results WHERE job_id = ? LIMIT 1`,
+          [jobId],
+        );
+        if (!row) throw new Error(`Embedding result missing for job ${jobId}`);
+      } else if (stage === 'index_fts') {
+        const row = await db.getFirstAsync<{ rowid: number }>(`SELECT rowid FROM screenshot_search_index WHERE job_id = ?`, [jobId]);
+        if (!row) throw new Error(`Index FTS entries missing for job ${jobId}`);
+      } else if (stage === 'index_vec') {
+        const row = await db.getFirstAsync<{ rowid: number }>(`SELECT rowid FROM image_embedding_index WHERE job_id = ?`, [jobId]);
+        if (!row) throw new Error(`Index Vec entries missing for job ${jobId}`);
+      }
+
+      const completion = await db.runAsync(
+        `UPDATE stage_executions
+         SET status = 'completed', lease_until = NULL, updated_at = ?, last_error = NULL
+         WHERE id = ? AND status = 'running'`,
+        [now, executionId],
       );
-      if (!row) throw new Error(`Metadata result missing for job ${jobId}`);
-    } else if (stage === 'ocr') {
-      const row = await db.getFirstAsync<{ job_id: string }>(`SELECT job_id FROM ocr_stage_results WHERE job_id = ?`, [jobId]);
-      if (!row) throw new Error(`OCR result missing for job ${jobId}`);
-    } else if (stage === 'ocr_postprocess') {
-      const row = await db.getFirstAsync<{ job_id: string }>(
-        `SELECT job_id FROM ocr_postprocess_stage_results WHERE job_id = ?`,
-        [jobId],
+      if ((completion.changes ?? 0) === 0) {
+        throw new Error(`Execution ${executionId} is not claimable for completion`);
+      }
+
+      await db.runAsync(
+        `INSERT OR REPLACE INTO stage_checkpoints
+         (job_id, stage, output_path, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [jobId, stage, outputPath ?? null, now, now],
       );
-      if (!row) throw new Error(`OCR postprocess result missing for job ${jobId}`);
-    } else if (stage === 'embedding') {
-      const row = await db.getFirstAsync<{ id: string }>(
-        `SELECT id FROM embedding_stage_results WHERE job_id = ? LIMIT 1`,
-        [jobId],
-      );
-      if (!row) throw new Error(`Embedding result missing for job ${jobId}`);
-    } else if (stage === 'index_fts') {
-      const row = await db.getFirstAsync<{ rowid: number }>(`SELECT rowid FROM screenshot_search_index WHERE job_id = ?`, [jobId]);
-      if (!row) throw new Error(`Index FTS entries missing for job ${jobId}`);
-    } else if (stage === 'index_vec') {
-      const row = await db.getFirstAsync<{ rowid: number }>(`SELECT rowid FROM image_embedding_index WHERE job_id = ?`, [jobId]);
-      if (!row) throw new Error(`Index Vec entries missing for job ${jobId}`);
+
+      await enqueueReadyChildren(jobId, stage, now);
+      await markJobCompletedIfTerminal(jobId, now);
+
+      await db.execAsync('COMMIT');
+    } catch (error) {
+      await db.execAsync('ROLLBACK');
+      throw error;
     }
-
-    const completion = await db.runAsync(
-      `UPDATE stage_executions
-       SET status = 'completed', lease_until = NULL, updated_at = ?, last_error = NULL
-       WHERE id = ? AND status = 'running'`,
-      [now, executionId],
-    );
-    if ((completion.changes ?? 0) === 0) {
-      throw new Error(`Execution ${executionId} is not claimable for completion`);
-    }
-
-    await db.runAsync(
-      `INSERT OR REPLACE INTO stage_checkpoints
-       (job_id, stage, output_path, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [jobId, stage, outputPath ?? null, now, now],
-    );
-
-    await enqueueReadyChildren(jobId, stage, now);
-    await markJobCompletedIfTerminal(jobId, now);
-
-    await db.execAsync('COMMIT');
-  } catch (error) {
-    await db.execAsync('ROLLBACK');
-    throw error;
+  } finally {
+    unlock();
   }
 }
 
