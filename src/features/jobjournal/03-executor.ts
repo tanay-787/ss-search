@@ -13,7 +13,7 @@ import type { JobJournalStage, JobJournalStageExecution } from './types';
 
 const LEASE_DURATION_MS = 5 * 60 * 1000;
 
-const STAGE_DEPENDENCIES: Record<Exclude<JobJournalStage, 'index'>, JobJournalStage[]> = {
+const STAGE_DEPENDENCIES: Record<JobJournalStage, JobJournalStage[]> = {
   metadata: [],
   ocr: ['metadata'],
   ocr_postprocess: ['ocr'],
@@ -23,7 +23,7 @@ const STAGE_DEPENDENCIES: Record<Exclude<JobJournalStage, 'index'>, JobJournalSt
   index_vec: ['embedding'],
 };
 
-const STAGE_CHILDREN: Record<Exclude<JobJournalStage, 'index'>, JobJournalStage[]> = {
+const STAGE_CHILDREN: Record<JobJournalStage, JobJournalStage[]> = {
   metadata: ['ocr'],
   ocr: ['ocr_postprocess'],
   ocr_postprocess: ['embedding', 'keywords', 'index_fts'],
@@ -170,7 +170,7 @@ export async function claimNextStageExecution(options?: { allowHeavy?: boolean }
       ),
       orderBy: [
         asc(sql`(CASE 
-          WHEN ${stageExecutions.stage} IN ('metadata', 'ocr', 'ocr_postprocess', 'keywords', 'index_fts', 'index') THEN 0 
+          WHEN ${stageExecutions.stage} IN ('metadata', 'ocr', 'ocr_postprocess', 'keywords', 'index_fts') THEN 0 
           ELSE 1 
         END)`),
         asc(stageExecutions.createdAt)

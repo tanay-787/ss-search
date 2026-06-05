@@ -43,7 +43,6 @@ const STAGE_TIMEOUTS: Record<JobJournalStage, number> = {
   ocr_postprocess: 30_000,
   embedding: 10 * 60_000,
   keywords: 60_000,
-  index: 120_000,
   index_fts: 120_000,
   index_vec: 120_000,
 };
@@ -85,7 +84,7 @@ async function getJob(jobId: string): Promise<JobJournalJob | null> {
 }
 
 function getCheckpointPointer(jobId: string, stage: JobJournalStage) {
-  if (stage === 'index' || stage === 'index_fts') return `screenshot_search_index:${jobId}`;
+  if (stage === 'index_fts') return `screenshot_search_index:${jobId}`;
   if (stage === 'index_vec') return `image_embedding_index:${jobId}`;
   if (stage === 'embedding') return `embedding_stage_results:${jobId}`;
   if (stage === 'keywords') return `keyword_stage_results:${jobId}`;
@@ -116,7 +115,7 @@ async function validateStageInput(jobId: string, stage: JobJournalStage): Promis
     return null;
   }
 
-  if (stage === 'embedding' || stage === 'keywords' || stage === 'index') {
+  if (stage === 'embedding' || stage === 'keywords') {
     const res = await db.query.ocrPostprocessStageResults.findFirst({
       where: eq(ocrPostprocessStageResults.jobId, jobId),
       columns: { text: true }
@@ -224,7 +223,6 @@ async function runStageExecution(execution: JobJournalStageExecution): Promise<b
         }
         break;
       }
-      case 'index':
       case 'index_fts': {
         try {
           result = await promiseWithTimeout(runIndexFtsStage(job), timeoutMs);

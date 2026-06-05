@@ -6,7 +6,6 @@ export type JobJournalStage =
   | 'ocr_postprocess'
   | 'embedding'
   | 'keywords'
-  | 'index'
   | 'index_fts'
   | 'index_vec';
 

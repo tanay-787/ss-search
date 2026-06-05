@@ -30,7 +30,7 @@ function normalizeJobStage(
   if (stage === 'metadata') return 'metadata';
   if (stage === 'ocr' || stage === 'ocr_postprocess') return 'ocr';
   if (stage === 'embedding') return 'embedding';
-  if (stage === 'keywords' || stage === 'index' || stage === 'index_fts') return 'enrichment';
+  if (stage === 'keywords' || stage === 'index_fts') return 'enrichment';
   
   return 'new';
 }

@@ -24,12 +24,14 @@ siglipTokenizer.ts    → SigLIP tokenizer implementation
 03-ocr_postprocess.stage.ts → Clean text, detect language
 04-embedding.stage.ts       → Generate SigLIP embeddings (image + text)
 05-keywords.stage.ts        → Extract TF-based keywords + entities
-06-index.stage.ts           → Join embedding + keywords and index into FTS5/vector search
+06-index_fts.stage.ts       → Index text into FTS5 + Trigram (Instant Search)
+07-index_vec.stage.ts       → Index embeddings into vector search (Semantic Search)
 ```
 
 ## Key Concepts
 
-- **Dependency DAG**: `embedding` and `keywords` both depend on `ocr_postprocess`; `index` waits for both.
+- **Dependency DAG**: `embedding` and `keywords` both depend on `ocr_postprocess`; `index_fts` waits for keywords; `index_vec` waits for embedding.
+- **Instant Search Path**: metadata → ocr → ocr_postprocess → keywords → index_fts. This path is prioritized to minimize time-to-first-search.
 - **Resumable**: Stages can fail and be retried; leases prevent concurrent execution.
 - **Model-aware**: Stages return `waiting_for_model` if SigLIP is not ready (idempotent retry).
 - **Durable**: All state persists in job_journal tables; crashes don't lose work.
