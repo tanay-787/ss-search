@@ -15,6 +15,13 @@
       "when": 1781100298850,
       "tag": "0001_add_canonical_text",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781265352897,
+      "tag": "0002_remove_siglip_and_vector_search",
+      "breakpoints": true
     }
   ]
 }

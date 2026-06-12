@@ -30,7 +30,6 @@ export function parseStageLastError(
 function validateErrorCode(codePart: string): JobJournalErrorCode | null {
   const knownCodes = new Set<JobJournalErrorCode>([
     'PRECONDITION_FAILED',
-    'MODEL_UNAVAILABLE',
     'TIMEOUT',
     'IO_ERROR',
     'NOT_FOUND',

@@ -20,7 +20,6 @@ export { getJobJournalDatabase, getJobJournalVecStatus, initializeJobJournalData
 export { JOB_JOURNAL_SCHEMA, JOB_JOURNAL_VEC_SCHEMA } from './storage/schema';
 
 export type {
-  JobJournalCheckpoint,
   JobJournalJob,
   JobJournalStage,
   JobJournalStageExecution,

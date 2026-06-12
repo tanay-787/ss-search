@@ -7,18 +7,15 @@ type SupportedLocale = 'en' | 'es';
 
 export type StageErrorCode =
   | 'TIMEOUT'
-  | 'MODEL_UNAVAILABLE'
   | 'UNKNOWN';
 
 const MESSAGES: Record<SupportedLocale, Record<StageErrorCode, string>> = {
   en: {
     TIMEOUT: 'Operation timed out. Please try again later.',
-    MODEL_UNAVAILABLE: 'Required model is not available on this device.',
     UNKNOWN: 'An unknown error occurred.',
   },
   es: {
     TIMEOUT: 'Tiempo de espera agotado. Por favor, inténtalo de nuevo más tarde.',
-    MODEL_UNAVAILABLE: 'El modelo necesario no está disponible en este dispositivo.',
     UNKNOWN: 'Ocurrió un error desconocido.',
   },
 };

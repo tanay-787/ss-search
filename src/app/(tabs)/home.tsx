@@ -23,7 +23,7 @@ const ITEM_SIZE = width / COLUMN_COUNT;
 
 export default function HomeScreen() {
   const [query, setQuery] = useState('');
-  const { results, search, loading, error, isModelReady } = useSearch();
+  const { results, search, loading, error} = useSearch();
   const { totalJobs, pending, running } = useJobJournalStats();
   const { sync, isSyncing } = useJobJournalOperations();
 
@@ -104,17 +104,7 @@ export default function HomeScreen() {
                 Search through {totalJobs} screenshots by text, visuals, or concepts.
               </Text>
               
-              {!isModelReady && (
-                <Card className="mt-6 p-4 bg-yellow-900/20 border-yellow-700/50">
-                  <Text style={styles.warningText}>
-                    Semantic search is warming up...
-                  </Text>
-                  <Text style={styles.warningSub}>
-                    Text search is available, but visual/conceptual matching will be ready once the model is loaded.
-                  </Text>
-                </Card>
-              )}
-
+              
               <View style={styles.suggestions}>
                 <Text style={styles.suggestionHeader}>Try searching for:</Text>
                 <View style={styles.suggestionChips}>

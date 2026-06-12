@@ -1,4 +1,4 @@
-export type JobJournalStatus = 'pending' | 'running' | 'completed' | 'failed' | 'waiting_for_model';
+export type JobJournalStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export type JobJournalStage =
   | 'metadata'
@@ -30,14 +30,13 @@ export type JobJournalStageExecution = {
 
 export type JobJournalErrorCode =
   | 'PRECONDITION_FAILED'
-  | 'MODEL_UNAVAILABLE'
   | 'TIMEOUT'
   | 'IO_ERROR'
   | 'NOT_FOUND'
   | 'UNKNOWN';
 
 export type StageResult = {
-  status: 'completed' | 'failed' | 'waiting_for_model';
+  status: 'completed' | 'failed';
   error?: string;
   errorCode?: JobJournalErrorCode;
 };

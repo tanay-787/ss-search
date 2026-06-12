@@ -1,8 +1,9 @@
 /* Job-journal runner
  * - runNextStageExecution() claims the next pending stage execution, runs the
- *   appropriate stage function, and records completed / failed / waiting_for_model
+ *   appropriate stage function, and records completed / failed
  *   outcomes via executor helpers.
  */
+import { eq, count } from 'drizzle-orm';
 import {
   claimNextStageExecution,
   completeStageExecution,
@@ -135,7 +136,7 @@ async function runStageExecution(execution: JobJournalStageExecution): Promise<b
     return true;
   }
 
-  let result: { status: 'completed' | 'failed' | 'waiting_for_model'; error?: string; errorCode?: string };
+  let result: { status: 'completed' | 'failed'; error?: string; errorCode?: string };
   const inputError = await validateStageInput(job.id, execution.stage);
   if (inputError) {
     console.warn(`[runner] Input validation failed for ${execution.stage} (${execution.jobId}): ${inputError}`);
@@ -225,8 +226,6 @@ async function runStageExecution(execution: JobJournalStageExecution): Promise<b
       console.error(`[runner] Completion logic failed for ${execution.stage}: ${msg}`);
       await failStageExecution(execution.id, `Completion validation failed: ${msg}`);
     }
-  } else if (result.status === 'waiting_for_model') {
-    await markExecutionWaitingForModel(execution.id, result.error || 'Waiting for model', result.errorCode);
   } else {
     await failStageExecution(execution.id, result.error || 'Stage failed', result.errorCode);
   }
@@ -301,7 +300,6 @@ export async function getExecutorStats() {
     running: 0,
     completed: 0,
     failed: 0,
-    waitingForModel: 0,
   };
 
   for (const row of rows) {
@@ -309,7 +307,6 @@ export async function getExecutorStats() {
     else if (row.status === 'running') result.running = row.count;
     else if (row.status === 'completed') result.completed = row.count;
     else if (row.status === 'failed') result.failed = row.count;
-    else if (row.status === 'waiting_for_model') result.waitingForModel = row.count;
   }
 
   return result;

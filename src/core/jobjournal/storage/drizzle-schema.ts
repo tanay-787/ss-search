@@ -15,7 +15,7 @@ export const stageExecutions = sqliteTable('stage_executions', {
   jobId: text('job_id').notNull().references(() => jobJournalJobs.id, { onDelete: 'cascade' }),
   stage: text('stage').notNull(),
   attempt: integer('attempt').notNull().default(0),
-  status: text('status').notNull(), // pending, running, completed, failed, waiting_for_model
+  status: text('status').notNull(), // pending, running, completed, failed
   leaseUntil: integer('lease_until', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),

@@ -116,7 +116,7 @@ async function markJobCompletedIfTerminal(jobId: string, now: Date) {
     .from(stageExecutions)
     .where(and(
       eq(stageExecutions.jobId, jobId),
-      inArray(stageExecutions.status, ['pending', 'running', 'waiting_for_model'])
+      inArray(stageExecutions.status, ['pending', 'running'])
     ));
 
   const [failedResult] = await db.select({ count: count() })
@@ -306,33 +306,6 @@ export async function failStageExecution(
   }
 }
 
-export async function markExecutionWaitingForModel(
-  executionId: string,
-  errorMessage: string,
-  errorCode?: string,
-): Promise<void> {
-  const db = await getDrizzleDb();
-  const now = new Date();
-  await db.update(stageExecutions)
-    .set({ 
-      status: 'waiting_for_model', 
-      leaseUntil: null, 
-      updatedAt: now, 
-      lastErrorCode: errorCode ?? 'WAIT_MODEL', 
-      lastErrorMessage: errorMessage 
-    })
-    .where(eq(stageExecutions.id, executionId));
-}
-
-export async function retryWaitingForModelExecutions(): Promise<number> {
-  const db = await getDrizzleDb();
-  const now = new Date();
-  const result = await db.update(stageExecutions)
-    .set({ status: 'pending', attempt: 0, leaseUntil: null, updatedAt: now })
-    .where(eq(stageExecutions.status, 'waiting_for_model'));
-  return result.changes;
-}
-
 export async function recoveryExpiredLeases(): Promise<number> {
   const db = await getDrizzleDb();
   const now = new Date();
@@ -352,13 +325,12 @@ export async function getStageExecutionStats() {
     .from(stageExecutions)
     .groupBy(stageExecutions.status);
     
-  const result = { pending: 0, running: 0, completed: 0, failed: 0, waitingForModel: 0 };
+  const result = { pending: 0, running: 0, completed: 0, failed: 0 };
   for (const row of rows) {
     if (row.status === 'pending') result.pending = row.count;
     else if (row.status === 'running') result.running = row.count;
     else if (row.status === 'completed') result.completed = row.count;
     else if (row.status === 'failed') result.failed = row.count;
-    else if (row.status === 'waiting_for_model') result.waitingForModel = row.count;
   }
   return result;
 }
