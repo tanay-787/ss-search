@@ -14,3 +14,14 @@
 # Scope: (Optional) The module/area being changed (e.g., ocr, ui, search)
 # Subject: Short, imperative mood description (e.g., "add login page")
 # --------------------
+
+
+# --- WRITING COMMITS ---
+# Git treats every message as completing this sentence:
+#   "If applied, this commit will ..."
+# 
+# So, 'optimize search route' -> 'If applied, this commit will optimize search route'
+# 
+# Common convention:
+#   Subject/title line -> Imperative mood(above)
+#   Body -> normal explanation(past tense) 
