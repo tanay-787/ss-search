@@ -51,9 +51,9 @@ export default function LibraryScreen() {
     return Object.entries(groups).map(([date, data]) => ({ date, data }));
   }, [items]);
 
-  const renderItem = ({ item }: { item: any }) => (
+  const RenderItem = React.memo(({ item }: { item: any }) => (
     <Pressable>
-      <Host matchContents={true}>
+      <Host matchContents>
         <Box 
           modifiers={[
             size(ITEM_SIZE, ITEM_SIZE),
@@ -96,14 +96,23 @@ export default function LibraryScreen() {
         </Box>
       </Host>
     </Pressable>
-  );
+  ));
+
+  const renderItem = useCallback(({ item }: { item: any }) => <RenderItem item={item} />, []);
+
+  const ITEM_TOTAL_SIZE = ITEM_SIZE + SPACING;
+  const getItemLayout = useCallback((_: any, index: number) => ({
+    length: ITEM_TOTAL_SIZE,
+    offset: ITEM_TOTAL_SIZE * Math.floor(index / COLUMN_COUNT),
+    index,
+  }), []);
 
   return (
     <Host style={{ flex: 1, backgroundColor: theme.background }} matchContents={false}>
       <Column modifiers={[fillMaxSize()]}>
         {/* Header */}
         <Row 
-          modifiers={[fillMaxWidth(), padding(16, 24, 16, 16)]} 
+          modifiers={[fillMaxWidth(), padding(16, 32, 16, 16)]} 
           verticalAlignment="center" 
           horizontalArrangement="spaceBetween"
         >
@@ -142,6 +151,7 @@ export default function LibraryScreen() {
             numColumns={COLUMN_COUNT}
             contentContainerStyle={{ padding: SPACING }}
             renderItem={renderItem}
+            getItemLayout={getItemLayout}
             refreshing={loading}
             onRefresh={onRefresh}
             ListEmptyComponent={
