@@ -1,22 +1,31 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { 
-  View, 
-  StyleSheet, 
-  FlatList, 
-  Pressable, 
   Dimensions,
-  RefreshControl,
-  Text,
-  ActivityIndicator
+  Pressable,
+  FlatList,
+  ActivityIndicator,
+  View,
 } from 'react-native';
+import { Host, Text } from '@expo/ui'; 
+import { Column, Row, Box, RNHostView, Icon } from '@expo/ui/jetpack-compose';
+import { 
+  fillMaxSize, 
+  fillMaxWidth, 
+  paddingAll, 
+  padding, 
+  size, 
+  background, 
+  clip, 
+  Shapes,
+} from '@expo/ui/jetpack-compose/modifiers';
 import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useJobJournalLibrary, useJobJournalOperations } from '@/hooks';
 import { useTheme } from '@/theme';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
-const ITEM_SIZE = width / COLUMN_COUNT;
+const SPACING = 4;
+const ITEM_SIZE = (width - (SPACING * (COLUMN_COUNT + 1))) / COLUMN_COUNT;
 
 export default function LibraryScreen() {
   const { items, loading, refresh } = useJobJournalLibrary();
@@ -27,112 +36,129 @@ export default function LibraryScreen() {
     await refresh();
   }, [refresh]);
 
-  return (
-    <View style={[styles.screen, { backgroundColor: theme.background }]}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.title, { color: theme.text }]}>Library</Text>
-            <Text style={[styles.subtitle, { color: theme.outline }]}>{items.length} items</Text>
-          </View>
-          {isProcessing && <ActivityIndicator size="small" color={theme.primary} />}
-        </View>
+  // Group items by date
+  const sections = useMemo(() => {
+    const groups: { [key: string]: any[] } = {};
+    items.forEach(item => {
+      const date = new Date(item.creationTime * 1000).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(item);
+    });
+    return Object.entries(groups).map(([date, data]) => ({ date, data }));
+  }, [items]);
 
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
-          numColumns={COLUMN_COUNT}
-          renderItem={({ item }) => (
-            <Pressable style={styles.item}>
-              <Image
-                source={{ uri: item.uri }}
-                style={styles.image}
-                contentFit="cover"
-                transition={200}
-              />
-              <View style={[
-                styles.statusIndicator, 
-                { backgroundColor: getStatusColor(item.status) }
-              ]} />
-            </Pressable>
-          )}
-          contentContainerStyle={styles.list}
-          refreshControl={
-            <RefreshControl
-              refreshing={loading}
-              onRefresh={onRefresh}
-              tintColor={theme.text}
+  const renderItem = ({ item }: { item: any }) => (
+    <Pressable>
+      <Host matchContents={true}>
+        <Box 
+          modifiers={[
+            size(ITEM_SIZE, ITEM_SIZE),
+            paddingAll(2),
+            clip(Shapes.RoundedCorner(8)),
+          ]}
+        >
+          <RNHostView matchContents={false}>
+            <Image
+              source={{ uri: item.uri }}
+              style={{ flex: 1, borderRadius: 8 }}
+              contentFit="cover"
+              transition={200}
             />
-          }
-          ListEmptyComponent={
-            !loading ? (
-              <View style={styles.empty}>
-                <Text style={[styles.emptyText, { color: theme.outline }]}>No screenshots found.</Text>
-              </View>
-            ) : null
-          }
-        />
-      </SafeAreaView>
-    </View>
+          </RNHostView>
+          {item.status !== 'indexed' && (
+              <Box 
+                  modifiers={[
+                      fillMaxSize(),
+                      paddingAll(6)
+                  ]}
+                  contentAlignment="bottomEnd"
+              >
+                  <Box 
+                      modifiers={[
+                          paddingAll(4),
+                          background('rgba(0,0,0,0.5)'),
+                          clip(Shapes.RoundedCorner(4))
+                          ]}
+                          >
+                          <Icon 
+                          source={item.status === 'working' ? require('../../../assets/autorenew.xml') : require('../../../assets/warning.xml')} 
+                          size={12} 
+                          tint="#FFFFFF" 
+                          />
+                          </Box>
+                          </Box>
+                          )}
+
+        </Box>
+      </Host>
+    </Pressable>
+  );
+
+  return (
+    <Host style={{ flex: 1, backgroundColor: theme.background }} matchContents={false}>
+      <Column modifiers={[fillMaxSize()]}>
+        {/* Header */}
+        <Row 
+          modifiers={[fillMaxWidth(), padding(16, 24, 16, 16)]} 
+          verticalAlignment="center" 
+          horizontalArrangement="spaceBetween"
+        >
+          <Column>
+            <Text 
+              textStyle={{ 
+                color: theme.onSurface, 
+                fontSize: 24, 
+                fontWeight: 'bold' 
+              }}
+            >
+              Library
+            </Text>
+            <Text 
+              textStyle={{ 
+                color: theme.onSurfaceVariant, 
+                fontSize: 14 
+              }}
+            >
+              {`${items.length} items collected`}
+            </Text>
+          </Column>
+          {isProcessing && (
+            <Box modifiers={[paddingAll(8), background(theme.primaryContainer), clip(Shapes.Circle)]}>
+                <RNHostView matchContents={true}>
+                  <ActivityIndicator size="small" color={theme.onPrimaryContainer} />
+                </RNHostView>
+            </Box>
+          )}
+        </Row>
+
+        <RNHostView matchContents={false}>
+          <FlatList
+            data={items}
+            keyExtractor={(item) => item.id}
+            numColumns={COLUMN_COUNT}
+            contentContainerStyle={{ padding: SPACING }}
+            renderItem={renderItem}
+            refreshing={loading}
+            onRefresh={onRefresh}
+            ListEmptyComponent={
+              !loading ? (
+                <Column 
+                    modifiers={[fillMaxWidth(), padding(40, 0, 0, 0)]} 
+                    horizontalAlignment="center"
+                    verticalArrangement={{ spacedBy: 16 }}
+                >
+                    <Box modifiers={[size(64, 64), background(theme.surfaceVariant), clip(Shapes.RoundedCorner(16))]} />
+                    <Text textStyle={{ color: theme.onSurfaceVariant }}>Your library is empty</Text>
+                </Column>
+              ) : null
+            }
+          />
+        </RNHostView>
+      </Column>
+    </Host>
   );
 }
-
-function getStatusColor(status: string) {
-  switch (status) {
-    case 'indexed': return '#22c55e'; // green
-    case 'working': return '#3b82f6'; // blue
-    case 'error': return '#ef4444'; // red
-    default: return '#6b7280'; // gray
-  }
-}
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    fontSize: 14,
-  },
-  list: {
-    padding: 1,
-  },
-  item: {
-    width: ITEM_SIZE,
-    height: ITEM_SIZE,
-    padding: 1,
-  },
-  image: {
-    flex: 1,
-  },
-  statusIndicator: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.5)',
-  },
-  empty: {
-    flex: 1,
-    padding: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-  },
-});

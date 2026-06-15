@@ -46,12 +46,12 @@ export default function IndexScreen() {
           {error ? (
             <>
               <Text modifiers={[]}>Initialization failed</Text>
-              <Text textStyle={{ color: theme.text }}>{error}</Text>
+              <Text textStyle={{ color: theme.onSurface }}>{error}</Text>
             </>
           ) : (
             <>
               <Text modifiers={[ padding(0,20,0,0)]} textStyle={{ color: theme.primary }}>Loading...</Text>
-              <Text textStyle={{ color: theme.text, fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>
+              <Text textStyle={{ color: theme.onSurface, fontSize: 20, fontWeight: 'bold', textAlign: 'center' }}>
                 Preparing your library
               </Text>
               <Text textStyle={{ color: theme.outline, fontSize: 14, textAlign: 'center' }}>
