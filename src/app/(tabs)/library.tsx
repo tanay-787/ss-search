@@ -5,6 +5,7 @@ import {
   FlatList,
   ActivityIndicator,
   View,
+  StyleSheet
 } from 'react-native';
 import { Host, Text } from '@expo/ui'; 
 import { Column, Row, Box, RNHostView, Icon } from '@expo/ui/jetpack-compose';
@@ -26,6 +27,15 @@ const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
 const SPACING = 4;
 const ITEM_SIZE = (width - (SPACING * (COLUMN_COUNT + 1))) / COLUMN_COUNT;
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'indexed': return '#22c55e'; // green
+    case 'working': return '#3b82f6'; // blue
+    case 'error': return '#ef4444'; // red
+    default: return '#6b7280'; // gray
+  }
+}
 
 export default function LibraryScreen() {
   const { items, loading, refresh } = useJobJournalLibrary();
@@ -52,51 +62,55 @@ export default function LibraryScreen() {
   }, [items]);
 
   const RenderItem = React.memo(({ item }: { item: any }) => (
-    <Pressable>
-      <Host matchContents>
-        <Box 
-          modifiers={[
-            size(ITEM_SIZE, ITEM_SIZE),
-            paddingAll(2),
-            clip(Shapes.RoundedCorner(8)),
-          ]}
-        >
-          <RNHostView matchContents={false}>
-            <Image
-              source={{ uri: item.uri }}
-              style={{ flex: 1, borderRadius: 8 }}
-              contentFit="cover"
-              transition={200}
-            />
-          </RNHostView>
-          {item.status !== 'indexed' && (
-              <Box 
-                  modifiers={[
-                      fillMaxSize(),
-                      paddingAll(6)
-                  ]}
-                  contentAlignment="bottomEnd"
-              >
-                  <Box 
-                      modifiers={[
-                          paddingAll(4),
-                          background('rgba(0,0,0,0.5)'),
-                          clip(Shapes.RoundedCorner(4))
-                          ]}
-                          >
-                          <Icon 
-                          source={item.status === 'working' ? require('../../../assets/autorenew.xml') : require('../../../assets/warning.xml')} 
-                          size={12} 
-                          tint="#FFFFFF" 
-                          />
-                          </Box>
-                          </Box>
-                          )}
-
-        </Box>
-      </Host>
+    <Pressable style={styles.itemContainer}>
+      <View style={styles.imageWrapper}>
+        <Image
+          source={{ uri: item.uri }}
+          style={styles.image}
+          contentFit="cover"
+          transition={200}
+        />
+        <View style={[
+          styles.statusIndicator, 
+          { backgroundColor: getStatusColor(item.status) }
+        ]} />
+      </View>
     </Pressable>
   ));
+
+  const styles = StyleSheet.create({
+    itemContainer: {
+      width: ITEM_SIZE,
+      height: ITEM_SIZE,
+      padding: 2,
+    },
+    imageWrapper: {
+      flex: 1,
+      borderRadius: 8,
+      overflow: 'hidden',
+    },
+    image: {
+      flex: 1,
+    },
+    statusIndicator: {
+      position: 'absolute',
+      top: 6,
+      left: 6,
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      borderWidth: 2,
+      borderColor: 'rgba(255,255,255,0.8)',
+    },
+    statusBadge: {
+      position: 'absolute',
+      bottom: 6,
+      right: 6,
+      padding: 4,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      borderRadius: 4,
+    },
+  });
 
   const renderItem = useCallback(({ item }: { item: any }) => <RenderItem item={item} />, []);
 
