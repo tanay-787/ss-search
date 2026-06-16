@@ -48,11 +48,11 @@ const styles = StyleSheet.create({
   statusIndicator: {
     position: 'absolute',
     top: 6,
-    left: 6,
-    width: 12,
-    height: 12,
+    right: 6,
+    width: 8,
+    height: 8,
     borderRadius: 6,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.8)',
   },
 });
