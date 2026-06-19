@@ -4,12 +4,15 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@expo/dom-webview': 56.0.5
+
 importers:
 
   .:
     dependencies:
       '@expo/dom-webview':
-        specifier: ^56.0.5
+        specifier: 56.0.5
         version: 56.0.5(expo@56.0.11)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)
       '@expo/material-symbols':
         specifier: ^0.1.1
@@ -1302,7 +1305,7 @@ packages:
   '@expo/log-box@56.0.13':
     resolution: {integrity: sha512-QWRZSpWPyjkDLVQio4R7oAzg/Av2MOt/DciFkfjr8qQ3qxGVn1Rt1oHP/80hvcWDcHFV7N6PqpyxRXw6nbxzKQ==}
     peerDependencies:
-      '@expo/dom-webview': ^56.0.5
+      '@expo/dom-webview': 56.0.5
       expo: '*'
       react: '*'
       react-native: '*'
@@ -3631,7 +3634,7 @@ packages:
     resolution: {integrity: sha512-YqF+q+JqfobDU5yFym3h1vQqzbl7rFiDB4wAJEyK6NK+KLeyf4pfzydQcNTyqLXQKcQBG1reBJExfDShoAYTzw==}
     hasBin: true
     peerDependencies:
-      '@expo/dom-webview': '*'
+      '@expo/dom-webview': 56.0.5
       '@expo/metro-runtime': '*'
       react: '*'
       react-dom: '*'
