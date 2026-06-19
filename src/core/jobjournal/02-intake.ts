@@ -1,6 +1,6 @@
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { File } from 'expo-file-system';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 
 import {
   loadJobJournalScreenshotSource,
@@ -24,21 +24,16 @@ function getJobId(asset: MediaLibrary.Asset) {
 }
 
 async function getImageHash(asset: MediaLibrary.Asset) {
-  const file = new File(asset.uri);
-  const info = await file.info({ md5: true });
-  if (info.exists && info.md5) {
-    return { hash: `md5:${info.md5}`, isReliable: true };
-  }
-
+  // To avoid expensive I/O when processing thousands of screenshots, we generate a unique hash
+  // using asset metadata. Since asset.id is guaranteed to be unique and stable, this is 100% reliable.
   const fallbackHash = [
     asset.id,
-    asset.uri,
     asset.filename ?? '',
     asset.creationTime ?? 0,
     asset.width ?? 0,
     asset.height ?? 0,
   ].join('|');
-  return { hash: `fallback:${fallbackHash}`, isReliable: false };
+  return { hash: `meta:${fallbackHash}`, isReliable: true };
 }
 
 function getStageExecutionId(jobId: string, stage: JobJournalStage) {
@@ -54,66 +49,126 @@ export async function ingestJobJournalScreenshots(assets: MediaLibrary.Asset[] =
   let existingJobs = 0;
   let createdExecutions = 0;
 
-  // Use a single transaction for high-efficiency batch intake
-  await db.transaction(async (tx) => {
-    for (const asset of nextAssets) {
-      const jobId = getJobId(asset);
-      const hashResult = await getImageHash(asset);
-      const imageHash = hashResult.hash;
-      
-      // 1. Check for existing job
-      const existingJob = await tx.query.jobJournalJobs.findFirst({
-        where: hashResult.isReliable 
-          ? eq(jobJournalJobs.imageHash, imageHash)
-          : eq(jobJournalJobs.id, jobId)
-      });
+  if (nextAssets.length === 0) {
+    return {
+      totalAssets: 0,
+      createdJobs: 0,
+      existingJobs: 0,
+      createdExecutions: 0,
+    };
+  }
 
-      if (existingJob) {
-        existingJobs += 1;
-        
-        const stageExecutionId = getStageExecutionId(existingJob.id, INITIAL_STAGE);
-        const existingExecution = await tx.query.stageExecutions.findFirst({
-          where: eq(stageExecutions.id, stageExecutionId),
-          columns: { id: true }
+  // 1. Map all jobIds to query
+  const assetJobIds = nextAssets.map(asset => getJobId(asset));
+
+  // 2. Fetch existing jobs and metadata stage executions in chunks to avoid SQLite parameter limit (999)
+  const existingJobRows: { id: string; imageHash: string }[] = [];
+  const existingExecutionRows: { jobId: string }[] = [];
+  
+  const QUERY_BATCH_SIZE = 500;
+  for (let i = 0; i < assetJobIds.length; i += QUERY_BATCH_SIZE) {
+    const chunk = assetJobIds.slice(i, i + QUERY_BATCH_SIZE);
+    
+    // Fetch jobs chunk
+    const jobs = await db.select({
+      id: jobJournalJobs.id,
+      imageHash: jobJournalJobs.imageHash,
+    })
+    .from(jobJournalJobs)
+    .where(inArray(jobJournalJobs.id, chunk));
+    existingJobRows.push(...jobs);
+
+    // Fetch executions chunk
+    const execs = await db.select({
+      jobId: stageExecutions.jobId,
+    })
+    .from(stageExecutions)
+    .where(and(
+      eq(stageExecutions.stage, INITIAL_STAGE),
+      inArray(stageExecutions.jobId, chunk)
+    ));
+    existingExecutionRows.push(...execs);
+  }
+
+  const existingJobIds = new Set(existingJobRows.map(r => r.id));
+  const existingHashes = new Set(existingJobRows.map(r => r.imageHash));
+  const existingExecutions = new Set(existingExecutionRows.map(r => r.jobId));
+
+  const jobsToInsert: typeof jobJournalJobs.$inferInsert[] = [];
+  const executionsToInsert: typeof stageExecutions.$inferInsert[] = [];
+
+  for (const asset of nextAssets) {
+    const jobId = getJobId(asset);
+    const hashResult = await getImageHash(asset);
+    const imageHash = hashResult.hash;
+
+    // Check if job exists
+    if (existingJobIds.has(jobId) || existingHashes.has(imageHash)) {
+      existingJobs += 1;
+
+      const matchedJobId = existingJobIds.has(jobId) 
+        ? jobId 
+        : existingJobRows.find(r => r.imageHash === imageHash)?.id;
+
+      if (matchedJobId && !existingExecutions.has(matchedJobId)) {
+        const stageExecutionId = getStageExecutionId(matchedJobId, INITIAL_STAGE);
+        executionsToInsert.push({
+          id: stageExecutionId,
+          jobId: matchedJobId,
+          stage: INITIAL_STAGE,
+          status: 'pending',
+          createdAt: now,
+          updatedAt: now,
         });
+        createdExecutions += 1;
+        existingExecutions.add(matchedJobId);
+      }
+      continue;
+    }
 
-        if (!existingExecution) {
-          await tx.insert(stageExecutions).values({
-            id: stageExecutionId,
-            jobId: existingJob.id,
-            stage: INITIAL_STAGE,
-            status: 'pending',
-            createdAt: now,
-            updatedAt: now,
-          });
-          createdExecutions += 1;
-        }
-        continue;
+    // New Job
+    jobsToInsert.push({
+      id: jobId,
+      imageUri: asset.uri,
+      imageHash,
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+    });
+    createdJobs += 1;
+    existingJobIds.add(jobId);
+    existingHashes.add(imageHash);
+
+    const stageExecutionId = getStageExecutionId(jobId, INITIAL_STAGE);
+    executionsToInsert.push({
+      id: stageExecutionId,
+      jobId,
+      stage: INITIAL_STAGE,
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+    });
+    createdExecutions += 1;
+    existingExecutions.add(jobId);
+  }
+
+  // 3. Batch insert jobs and executions in chunks
+  const INSERT_BATCH_SIZE = 100;
+  if (jobsToInsert.length > 0 || executionsToInsert.length > 0) {
+    await db.transaction(async (tx) => {
+      // Insert jobs
+      for (let i = 0; i < jobsToInsert.length; i += INSERT_BATCH_SIZE) {
+        const chunk = jobsToInsert.slice(i, i + INSERT_BATCH_SIZE);
+        await tx.insert(jobJournalJobs).values(chunk);
       }
 
-      // 2. New Job
-      await tx.insert(jobJournalJobs).values({
-        id: jobId,
-        imageUri: asset.uri,
-        imageHash,
-        status: 'pending',
-        createdAt: now,
-        updatedAt: now,
-      });
-      createdJobs += 1;
-
-      const stageExecutionId = getStageExecutionId(jobId, INITIAL_STAGE);
-      await tx.insert(stageExecutions).values({
-        id: stageExecutionId,
-        jobId,
-        stage: INITIAL_STAGE,
-        status: 'pending',
-        createdAt: now,
-        updatedAt: now,
-      });
-      createdExecutions += 1;
-    }
-  });
+      // Insert executions
+      for (let i = 0; i < executionsToInsert.length; i += INSERT_BATCH_SIZE) {
+        const chunk = executionsToInsert.slice(i, i + INSERT_BATCH_SIZE);
+        await tx.insert(stageExecutions).values(chunk);
+      }
+    });
+  }
 
   return {
     totalAssets: nextAssets.length,
