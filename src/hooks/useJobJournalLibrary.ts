@@ -72,13 +72,9 @@ export function useJobJournalLibrary() {
          e.last_error_message
        FROM job_journal_jobs j
        LEFT JOIN metadata_stage_results m ON m.job_id = j.id
-       LEFT JOIN (
-         SELECT job_id, stage, attempt, last_error_message,
-                ROW_NUMBER() OVER (PARTITION BY job_id ORDER BY created_at DESC) as rn
-         FROM stage_executions
-       ) e ON e.job_id = j.id AND e.rn = 1
+       LEFT JOIN stage_executions e ON e.job_id = j.id AND e.status != 'completed'
        ORDER BY j.created_at DESC
-       LIMIT 500
+       LIMIT 5000
     `);
 
     return rows.map((row: any) => {
