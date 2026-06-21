@@ -60,22 +60,33 @@ export function JobJournalProvider({ children }: { children: React.ReactNode }) 
   const refreshStats = useCallback(async () => {
     try {
       const db = await getJobJournalDatabase();
-      const [executorStats, jobsCount] = await Promise.all([
-        getExecutorStats(),
+      const [rows, jobsCount] = await Promise.all([
+        db.getAllAsync<{ status: string; count: number }>(
+          `SELECT status, COUNT(*) as count FROM job_journal_jobs GROUP BY status`
+        ),
         db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) as count FROM job_journal_jobs`),
       ]);
 
       if (!isMounted.current) return;
 
+      const stats = {
+        pending: 0,
+        running: 0,
+        completed: 0,
+        failed: 0,
+        totalJobs: jobsCount?.count ?? 0,
+      };
+
+      for (const row of rows) {
+        if (row.status === 'pending') stats.pending = row.count;
+        else if (row.status === 'running') stats.running = row.count;
+        else if (row.status === 'completed') stats.completed = row.count;
+        else if (row.status === 'failed') stats.failed = row.count;
+      }
+
       setState(prev => ({
         ...prev,
-        stats: {
-          pending: executorStats.pending,
-          running: executorStats.running,
-          completed: executorStats.completed,
-          failed: executorStats.failed,
-          totalJobs: jobsCount?.count ?? 0,
-        },
+        stats,
         loading: false,
       }));
     } catch (error) {
@@ -173,6 +184,7 @@ export function JobJournalProvider({ children }: { children: React.ReactNode }) 
     isMounted.current = true;
     
     // 1. Initial Load & Engine Start
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshStats().then(() => {
       void runEngine();
     });
