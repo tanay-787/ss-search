@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Host } from '@expo/ui'; 
+import { Host } from '@expo/ui/jetpack-compose';
 import { ThemeProvider } from '@/theme';
 import { 
   PermissionProvider, 
@@ -18,8 +18,8 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <Host style={{ flex: 1}} colorScheme={colorScheme}>
-          <ThemeProvider>
+        <ThemeProvider>
+          <Host style={{ flex: 1 }} seedColor="#0057FF">
             <PermissionProvider>
               <JobJournalProvider>
                 <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -30,8 +30,8 @@ export default function RootLayout() {
                 </Stack>
               </JobJournalProvider>
             </PermissionProvider>
-          </ThemeProvider>
-        </Host>
+          </Host>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

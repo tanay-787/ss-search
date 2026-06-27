@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from '@expo/ui';
-import { Column, Box, RNHostView, FilledTonalButton, Spacer, Row } from '@expo/ui/jetpack-compose';
+import { Column, Box, RNHostView, FilledTonalButton, Spacer, Row, Surface, useMaterialColors } from '@expo/ui/jetpack-compose';
 import {
   fillMaxSize,
   fillMaxWidth,
@@ -14,19 +14,19 @@ import {
 } from '@expo/ui/jetpack-compose/modifiers';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Theme } from '@/theme';
 import { PhotoLibraryIllustration } from '@/ui/illustrations';
 
 interface GrantPermissionScreenProps {
-  theme: Theme;
   onGrantPermission: () => void;
 }
 
-export const GrantPermissionScreen = React.memo(({ theme, onGrantPermission }: GrantPermissionScreenProps) => {
+export const GrantPermissionScreen = React.memo(({ onGrantPermission }: GrantPermissionScreenProps) => {
   const insets = useSafeAreaInsets();
+  const colors = useMaterialColors();
   
   return (
-    <Column modifiers={[fillMaxSize(), paddingModifier(24, 0, 24, Math.max(insets.bottom, 24))]} horizontalAlignment="center">
+    <Surface modifiers={[fillMaxSize()]}>
+      <Column modifiers={[fillMaxSize(), paddingModifier(24, 0, 24, Math.max(insets.bottom, 24))]} horizontalAlignment="center">
 
       {/* Top spacer — pushes content to vertical centre */}
       <Spacer modifiers={[weight(1)]} />
@@ -35,7 +35,7 @@ export const GrantPermissionScreen = React.memo(({ theme, onGrantPermission }: G
     <Box modifiers={[size(120, 120), background('transparent'), clip(Shapes.RoundedCorner(36))]}>
       <Column modifiers={[fillMaxSize()]} horizontalAlignment="center" verticalArrangement="center">
         <RNHostView matchContents={true}>
-          <PhotoLibraryIllustration theme={theme} size={140} />
+          <PhotoLibraryIllustration size={140} />
         </RNHostView>
       </Column>
     </Box>
@@ -44,10 +44,10 @@ export const GrantPermissionScreen = React.memo(({ theme, onGrantPermission }: G
 
     {/* Title + body */}
     <Column horizontalAlignment="center" verticalArrangement={{ spacedBy: 12 }}>
-      <Text textStyle={{ color: theme.onSurface, fontSize: 28, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5 }}>
+      <Text textStyle={{ fontSize: 28, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5 }}>
         Accessing Your Library
       </Text>
-      <Text textStyle={{ color: theme.onSurfaceVariant, fontSize: 16, lineHeight: 24, textAlign: 'center' }}>
+      <Text textStyle={{ fontSize: 16, lineHeight: 24, textAlign: 'center' }}>
         To automatically find and index your screenshots, Refind needs access to your entire photo library.
       </Text>
     </Column>
@@ -62,17 +62,18 @@ export const GrantPermissionScreen = React.memo(({ theme, onGrantPermission }: G
         modifiers={[fillMaxWidth()]}
         contentPadding={{ top: 18, bottom: 18 }}
         >
-        <Text textStyle={{ color: theme.onPrimary, fontSize: 18, fontWeight: '700', letterSpacing: 0.3 }}>
+        <Text textStyle={{ fontSize: 18, fontWeight: '700', letterSpacing: 0.3 }}>
           Grant Permissions
         </Text>
       </FilledTonalButton>
 
       {/* Disclaimer / Hint below CTA */}
-      <Text textStyle={{ color: theme.onSurfaceVariant, fontSize: 14, textAlign: 'center' }}>
+      <Text textStyle={{ color: colors.onSurfaceVariant, fontSize: 14, textAlign: 'center' }}>
         Select "Allow All" to enable search
       </Text>
     </Column>
 
     </Column>
+    </Surface>
   );
 });

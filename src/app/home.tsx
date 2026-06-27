@@ -3,11 +3,12 @@ import {
   Keyboard,
   Dimensions,
 } from 'react-native';
-import { Host } from '@expo/ui/jetpack-compose'; 
-import { Column, Box } from '@expo/ui/jetpack-compose';
+
+import { Column, Box, Surface } from '@expo/ui/jetpack-compose';
 import { fillMaxSize } from '@expo/ui/jetpack-compose/modifiers';
 import { useSearch, useJobJournalOperations, usePermissionContext } from '@/hooks';
-import { useTheme } from '@/theme';
+import { Host } from '@expo/ui/jetpack-compose';
+
 import { 
   registerJobJournalBackgroundTask, 
   scheduleJobJournalBackgroundTask 
@@ -29,7 +30,7 @@ const ITEM_SIZE = (SCREEN_WIDTH - (SPACING * (COLUMN_COUNT + 1))) / COLUMN_COUNT
 export default function HomeScreen() {
   const [query, setQuery] = useState('');
   const { results, search, loading } = useSearch();
-  const theme = useTheme();
+
   const { sync } = useJobJournalOperations();
   const { hasPermission, requestPermission } = usePermissionContext();
 
@@ -66,9 +67,9 @@ export default function HomeScreen() {
   // the layout-level Host and screen content, breaking the Compose boundary.
   if (!hasPermission) {
     return (
-      <Host seedColor={theme.primary} style={{ flex: 1, backgroundColor: theme.background }}>
+      <Host style={{ flex: 1 }} seedColor="#0057FF">
         <GrantPermissionScreen
-          theme={theme}
+
           onGrantPermission={handleGrantPermission}
         />
       </Host>
@@ -76,12 +77,12 @@ export default function HomeScreen() {
   }
 
   return (
-    <Host style={{ flex: 1, backgroundColor: theme.background }}>
-      <Column modifiers={[fillMaxSize()]}>
-        <Header theme={theme} />
+    <Host style={{ flex: 1 }} seedColor="#0057FF">
+      <Surface modifiers={[fillMaxSize()]}>
+        <Column modifiers={[fillMaxSize()]}>
+        <Header />
         
         <SearchBar 
-          theme={theme} 
           onQueryChange={setQuery} 
         />
 
@@ -89,7 +90,7 @@ export default function HomeScreen() {
           {results.length > 0 ? (
             <ResultsList 
               results={results}
-              theme={theme}
+
               itemSize={ITEM_SIZE}
               spacing={SPACING}
               columnCount={COLUMN_COUNT}
@@ -97,14 +98,15 @@ export default function HomeScreen() {
           ) : (
             <Column modifiers={[fillMaxSize()]} horizontalAlignment="center" verticalArrangement="center">
               {query && !loading ? (
-                <NoResultsState theme={theme} />
+                <NoResultsState />
               ) : (
-                <EmptyState theme={theme} />
+                <EmptyState />
               )}
             </Column>
           )}
         </Box>
-      </Column>
+        </Column>
+      </Surface>
     </Host>
   );
 }
