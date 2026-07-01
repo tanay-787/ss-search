@@ -2,20 +2,20 @@ import React, { memo, forwardRef } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { useMaterialColors } from '@expo/ui/jetpack-compose';
+import type { SearchResult } from '@/core/jobjournal/search/hybrid';
 
 interface ResultItemProps {
-  item: any;
-  itemSize: number;
+  item: SearchResult;
   onPress?: () => void;
 }
 
-export const ResultItem = memo(forwardRef<View, ResultItemProps>(({ item, itemSize, onPress }, ref) => {
+export const ResultItem = memo(forwardRef<View, ResultItemProps>(({ item, onPress }, ref) => {
   const colors = useMaterialColors();
   
   return (
     <Pressable
       ref={ref as any}
-      style={[styles.itemContainer, { width: itemSize, height: itemSize }]}
+      style={[styles.itemContainer, { aspectRatio: item.aspectRatio || 1 }]}
       onPress={onPress}
       android_ripple={{ color: 'rgba(255,255,255,0.12)', borderless: false }}
     >
@@ -33,6 +33,7 @@ export const ResultItem = memo(forwardRef<View, ResultItemProps>(({ item, itemSi
 
 const styles = StyleSheet.create({
   itemContainer: {
+    width: '100%',
   },
   imageWrapper: {
     flex: 1,

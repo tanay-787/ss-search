@@ -9,6 +9,10 @@ export interface SearchResult {
   keywords: string[];
   score: number;
   searchMethod: 'fts' | 'hybrid';
+  width: number;
+  height: number;
+  aspectRatio: number;
+  isLandscape: boolean;
 }
 
 /**
@@ -69,9 +73,12 @@ export async function hybridSearch(
           idx.job_id,
           o.text as cleaned_ocr_text,
           idx.keywords,
-          j.image_uri as uri
+          j.image_uri as uri,
+          m.width,
+          m.height
         FROM screenshot_search_index idx
         JOIN job_journal_jobs j ON j.id = idx.job_id
+        LEFT JOIN metadata_stage_results m ON m.job_id = idx.job_id
         LEFT JOIN ocr_postprocess_stage_results o ON o.job_id = idx.job_id
         WHERE screenshot_search_index MATCH ${ftsQuery}
         UNION
@@ -79,9 +86,12 @@ export async function hybridSearch(
           tri.job_id,
           o.text as cleaned_ocr_text,
           tri.keywords,
-          j.image_uri as uri
+          j.image_uri as uri,
+          m.width,
+          m.height
         FROM screenshot_search_trigram tri
         JOIN job_journal_jobs j ON j.id = tri.job_id
+        LEFT JOIN metadata_stage_results m ON m.job_id = tri.job_id
         LEFT JOIN ocr_postprocess_stage_results o ON o.job_id = tri.job_id
         WHERE screenshot_search_trigram MATCH ${trigramQuery}
         LIMIT 100
@@ -94,6 +104,9 @@ export async function hybridSearch(
         const relevanceScore = calculateQueryScore(queryTokens, row.cleaned_ocr_text || '', docKeywords);
         
         if (relevanceScore > 0) {
+          const w = row.width || 1;
+          const h = row.height || 1;
+          const aspect = w / h;
           candidates.set(row.job_id, {
             jobId: row.job_id,
             uri: row.uri,
@@ -101,6 +114,10 @@ export async function hybridSearch(
             keywords: docKeywords,
             score: relevanceScore,
             searchMethod: 'fts',
+            width: w,
+            height: h,
+            aspectRatio: aspect,
+            isLandscape: aspect > 1,
           });
         }
       });
